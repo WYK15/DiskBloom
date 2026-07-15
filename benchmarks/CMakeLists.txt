@@ -13,3 +13,19 @@ target_include_directories(
     PRIVATE
         ${PROJECT_SOURCE_DIR}/src
 )
+
+add_executable(
+    diskbloom_sunburst_layout_benchmark
+    sunburst_layout_benchmark.cpp
+)
+target_link_libraries(
+    diskbloom_sunburst_layout_benchmark
+    PRIVATE
+        diskbloom_core
+        diskbloom_options
+)
+target_include_directories(
+    diskbloom_sunburst_layout_benchmark
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)
