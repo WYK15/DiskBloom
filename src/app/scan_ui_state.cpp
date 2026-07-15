@@ -45,13 +45,15 @@ VolumeScanState to_volume_state(
 
 void reset_scan_ui(ScanUiModel& model, const std::size_t volumeCount) {
     model.volumes.assign(volumeCount, VolumeScanStatus{});
+    model.folder = {};
     model.activeVolume.reset();
+    model.folderActive = false;
 }
 
 ScanUiAction activate_volume(
     ScanUiModel& model,
     const std::size_t volumeIndex) noexcept {
-    if (volumeIndex >= model.volumes.size()) {
+    if (volumeIndex >= model.volumes.size() || model.folderActive) {
         return {};
     }
 
@@ -72,34 +74,61 @@ ScanUiAction activate_volume(
     return {};
 }
 
+ScanUiAction activate_folder(ScanUiModel& model) noexcept {
+    if (model.activeVolume.has_value()) {
+        return {};
+    }
+    if (!model.folderActive) {
+        model.folderActive = true;
+        model.folder = {
+            .state = VolumeScanState::Running,
+            .progress = {},
+        };
+        return {ScanUiActionKind::Start};
+    }
+    if (model.folder.state == VolumeScanState::Running) {
+        model.folder.state = VolumeScanState::Cancelling;
+        return {ScanUiActionKind::Cancel};
+    }
+    return {};
+}
+
 bool apply_scan_snapshot(
     ScanUiModel& model,
     const scan::ScanSessionState sessionState,
     const platform::windows::ScanProgress& progress) noexcept {
-    if (!model.activeVolume.has_value()
-        || *model.activeVolume >= model.volumes.size()) {
+    VolumeScanStatus* status = nullptr;
+    if (model.activeVolume.has_value()
+        && *model.activeVolume < model.volumes.size()) {
+        status = &model.volumes[*model.activeVolume];
+    } else if (model.folderActive) {
+        status = &model.folder;
+    }
+    if (status == nullptr) {
         return false;
     }
 
-    auto& status = model.volumes[*model.activeVolume];
-    const auto nextState = to_volume_state(sessionState, status.state);
-    const auto changed = status.state != nextState
-        || !same_progress(status.progress, progress);
-    status.state = nextState;
-    status.progress = progress;
+    const auto nextState = to_volume_state(sessionState, status->state);
+    const auto changed = status->state != nextState
+        || !same_progress(status->progress, progress);
+    status->state = nextState;
+    status->progress = progress;
     return changed;
 }
 
-std::optional<std::size_t> release_terminal_scan(ScanUiModel& model) noexcept {
-    if (!model.activeVolume.has_value()
-        || *model.activeVolume >= model.volumes.size()
-        || !is_terminal(model.volumes[*model.activeVolume].state)) {
-        return std::nullopt;
+std::optional<ScanUiTarget> release_terminal_scan(ScanUiModel& model) noexcept {
+    if (model.activeVolume.has_value()
+        && *model.activeVolume < model.volumes.size()
+        && is_terminal(model.volumes[*model.activeVolume].state)) {
+        const auto target = ScanUiTarget{ScanUiTargetKind::Volume, *model.activeVolume};
+        model.activeVolume.reset();
+        return target;
     }
-
-    const auto volumeIndex = model.activeVolume;
-    model.activeVolume.reset();
-    return volumeIndex;
+    if (model.folderActive && is_terminal(model.folder.state)) {
+        model.folderActive = false;
+        return ScanUiTarget{ScanUiTargetKind::Folder};
+    }
+    return std::nullopt;
 }
 
 } // namespace diskbloom::app

@@ -77,7 +77,9 @@ public:
     DiskOverview& operator=(const DiskOverview&) = delete;
 
     void set_volumes(std::vector<platform::windows::VolumeSnapshot> volumes);
-    void set_scan_statuses(const std::vector<VolumeScanStatus>& statuses);
+    void set_scan_statuses(
+        const std::vector<VolumeScanStatus>& statuses,
+        const VolumeScanStatus& folderStatus);
     [[nodiscard]] bool draw(
         render::GraphicsDevice& graphics,
         const core::ThemeTokens& theme,
@@ -100,6 +102,7 @@ private:
 
     std::vector<platform::windows::VolumeSnapshot> volumes_;
     std::vector<VolumeScanStatus> scan_statuses_;
+    VolumeScanStatus folder_status_;
     std::vector<std::wstring> detail_text_;
     core::Language detail_language_ = core::Language::English;
     bool detail_text_valid_ = false;

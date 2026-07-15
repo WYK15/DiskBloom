@@ -201,9 +201,12 @@ void DiskOverview::set_volumes(std::vector<platform::windows::VolumeSnapshot> vo
     detail_text_valid_ = false;
 }
 
-void DiskOverview::set_scan_statuses(const std::vector<VolumeScanStatus>& statuses) {
+void DiskOverview::set_scan_statuses(
+    const std::vector<VolumeScanStatus>& statuses,
+    const VolumeScanStatus& folderStatus) {
     scan_statuses_ = statuses;
     scan_statuses_.resize(volumes_.size());
+    folder_status_ = folderStatus;
     detail_text_valid_ = false;
 }
 
@@ -499,7 +502,48 @@ bool DiskOverview::draw(
     draw_bottom_button(
         layout_.scanFolderButton,
         OverviewCommandKind::ScanFolder,
-        core::StringId::ScanFolder);
+        folder_status_.state == VolumeScanState::Running
+                || folder_status_.state == VolumeScanState::Cancelling
+            ? core::StringId::Cancel
+            : core::StringId::ScanFolder);
+    if (folder_status_.state != VolumeScanState::Idle) {
+        std::wstring folder_detail;
+        switch (folder_status_.state) {
+        case VolumeScanState::Idle:
+            break;
+        case VolumeScanState::Running:
+            folder_detail = core::get_string(language, core::StringId::Scanning);
+            break;
+        case VolumeScanState::Cancelling:
+            folder_detail = core::get_string(language, core::StringId::Cancelling);
+            break;
+        case VolumeScanState::Completed:
+            folder_detail = core::get_string(language, core::StringId::ScanComplete);
+            break;
+        case VolumeScanState::Cancelled:
+            folder_detail = core::get_string(language, core::StringId::ScanCancelled);
+            break;
+        case VolumeScanState::Failed:
+            folder_detail = core::get_string(language, core::StringId::ScanFailed);
+            break;
+        }
+        folder_detail.append(L"  ");
+        folder_detail.append(format_bytes(folder_status_.progress.logicalBytes));
+        draw_text(
+            folder_detail,
+            resources_->detailFormat.Get(),
+            {
+                layout_.scanFolderButton.right + 16.0F,
+                layout_.bottomBar.top,
+                std::max(
+                    layout_.scanFolderButton.right + 16.0F,
+                    layout_.settingsButton.left - 16.0F),
+                layout_.bottomBar.bottom,
+            },
+            folder_status_.state == VolumeScanState::Failed
+                ? resources_->danger.Get()
+                : resources_->secondaryText.Get());
+    }
     draw_bottom_button(
         layout_.settingsButton,
         OverviewCommandKind::OpenSettings,

@@ -2,6 +2,7 @@
 
 #include "core/string_catalog.h"
 #include "core/node_path.h"
+#include "platform/windows/folder_picker.h"
 #include "platform/windows/shell_actions.h"
 #include "platform/windows/recycle_bin.h"
 #include "platform/windows/system_theme.h"
@@ -274,16 +275,24 @@ void MainWindow::confirm_review_deletion() {
         return;
     }
 
-    const auto volumeIndex = completedVolumeIndex_;
+    const auto scanTarget = completedScanTarget_;
+    const auto rootPath = completedScan_->rootPath;
     deletionReview_.clear();
     analyzer_.set_review_summary(0U, 0U);
     analyzer_.set_tree(nullptr, core::invalid_node);
     navigation_ = {};
     completedScan_.reset();
-    completedVolumeIndex_.reset();
+    completedScanTarget_.reset();
     InvalidateRect(window_, nullptr, FALSE);
-    if (volumeIndex.has_value()) {
-        handle_volume_scan(*volumeIndex);
+    if (!scanTarget.has_value()) {
+        return;
+    }
+    if (scanTarget->kind == ScanUiTargetKind::Volume) {
+        handle_volume_scan(scanTarget->volumeIndex);
+    } else if (activate_folder(scanUi_).kind == ScanUiActionKind::Start) {
+        start_scan(rootPath);
+        overview_.set_scan_statuses(scanUi_.volumes, scanUi_.folder);
+        InvalidateRect(window_, nullptr, FALSE);
     }
 }
 
@@ -293,6 +302,7 @@ void MainWindow::handle_overview_command(const OverviewCommand& command) {
         handle_volume_scan(command.volumeIndex);
         break;
     case OverviewCommandKind::ScanFolder:
+        handle_folder_scan();
         break;
     case OverviewCommandKind::OpenSettings:
         show_settings_menu();
@@ -323,34 +333,66 @@ void MainWindow::handle_volume_scan(const std::size_t volumeIndex) {
         if (action.volumeIndex >= volumes_.size()) {
             return;
         }
-        scanSession_ = std::make_unique<scan::ScanSession>();
-        deletionReview_.clear();
-        analyzer_.set_review_summary(0U, 0U);
-        try {
-            if (!scanSession_->start(volumes_[action.volumeIndex].rootPath)) {
-                (void)apply_scan_snapshot(
-                    scanUi_,
-                    scan::ScanSessionState::Failed,
-                    {});
-                (void)release_terminal_scan(scanUi_);
-                scanSession_.reset();
-                break;
-            }
-        } catch (...) {
-            (void)apply_scan_snapshot(
-                scanUi_,
-                scan::ScanSessionState::Failed,
-                {});
-            (void)release_terminal_scan(scanUi_);
-            scanSession_.reset();
-            break;
-        }
-        SetTimer(window_, scan_timer_id, scan_timer_interval_ms, nullptr);
+        start_scan(volumes_[action.volumeIndex].rootPath);
         break;
     }
 
-    overview_.set_scan_statuses(scanUi_.volumes);
+    overview_.set_scan_statuses(scanUi_.volumes, scanUi_.folder);
     InvalidateRect(window_, nullptr, FALSE);
+}
+
+void MainWindow::handle_folder_scan() {
+    if (scanUi_.folderActive) {
+        if (activate_folder(scanUi_).kind == ScanUiActionKind::Cancel
+            && scanSession_ != nullptr) {
+            scanSession_->cancel();
+        }
+        overview_.set_scan_statuses(scanUi_.volumes, scanUi_.folder);
+        InvalidateRect(window_, nullptr, FALSE);
+        return;
+    }
+    if (scanUi_.activeVolume.has_value()) {
+        return;
+    }
+
+    auto selection = platform::windows::pick_folder(window_);
+    if (selection.status == platform::windows::FolderPickStatus::Cancelled) {
+        return;
+    }
+    if (selection.status != platform::windows::FolderPickStatus::Selected) {
+        MessageBoxW(
+            window_,
+            core::get_string(appearance_.language, core::StringId::ActionFailed).data(),
+            core::get_string(appearance_.language, core::StringId::AppTitle).data(),
+            MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    if (activate_folder(scanUi_).kind == ScanUiActionKind::Start) {
+        start_scan(std::move(selection.path));
+    }
+    overview_.set_scan_statuses(scanUi_.volumes, scanUi_.folder);
+    InvalidateRect(window_, nullptr, FALSE);
+}
+
+void MainWindow::start_scan(std::wstring rootPath) {
+    scanSession_ = std::make_unique<scan::ScanSession>();
+    deletionReview_.clear();
+    analyzer_.set_review_summary(0U, 0U);
+    try {
+        if (!scanSession_->start(std::move(rootPath))) {
+            (void)apply_scan_snapshot(scanUi_, scan::ScanSessionState::Failed, {});
+            (void)release_terminal_scan(scanUi_);
+            scanSession_.reset();
+            return;
+        }
+    } catch (...) {
+        (void)apply_scan_snapshot(scanUi_, scan::ScanSessionState::Failed, {});
+        (void)release_terminal_scan(scanUi_);
+        scanSession_.reset();
+        return;
+    }
+    SetTimer(window_, scan_timer_id, scan_timer_interval_ms, nullptr);
 }
 
 void MainWindow::poll_scan_session() {
@@ -364,12 +406,12 @@ void MainWindow::poll_scan_session() {
     if (sessionState == scan::ScanSessionState::Completed
         || sessionState == scan::ScanSessionState::Cancelled
         || sessionState == scan::ScanSessionState::Failed) {
-        const auto terminalVolume = scanUi_.activeVolume;
-        if (auto result = scanSession_->take_result();
-            result.has_value()
+        auto result = scanSession_->take_result();
+        const auto terminalTarget = release_terminal_scan(scanUi_);
+        if (result.has_value()
             && result->completion == platform::windows::ScanCompletion::Completed) {
             completedScan_ = std::move(*result);
-            completedVolumeIndex_ = terminalVolume;
+            completedScanTarget_ = terminalTarget;
             deletionReview_.clear();
             analyzer_.set_review_summary(0U, 0U);
             if (!completedScan_->tree.nodes().empty()
@@ -377,14 +419,13 @@ void MainWindow::poll_scan_session() {
                 analyzer_.set_tree(&completedScan_->tree, 0U);
             }
         }
-        (void)release_terminal_scan(scanUi_);
         KillTimer(window_, scan_timer_id);
         scanSession_.reset();
         changed = true;
     }
 
     if (changed) {
-        overview_.set_scan_statuses(scanUi_.volumes);
+        overview_.set_scan_statuses(scanUi_.volumes, scanUi_.folder);
         InvalidateRect(window_, nullptr, FALSE);
     }
 }
@@ -517,7 +558,7 @@ LRESULT MainWindow::handle_message(
         volumes_ = platform::windows::enumerate_volumes();
         overview_.set_volumes(volumes_);
         reset_scan_ui(scanUi_, volumes_.size());
-        overview_.set_scan_statuses(scanUi_.volumes);
+        overview_.set_scan_statuses(scanUi_.volumes, scanUi_.folder);
         apply_appearance();
         return 0;
 

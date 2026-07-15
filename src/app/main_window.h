@@ -15,6 +15,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace diskbloom::app {
@@ -34,6 +35,8 @@ private:
     void handle_analyzer_command(const AnalyzerCommand& command);
     void confirm_review_deletion();
     void handle_volume_scan(std::size_t volumeIndex);
+    void handle_folder_scan();
+    void start_scan(std::wstring rootPath);
     void poll_scan_session();
     void show_settings_menu();
     void apply_appearance();
@@ -57,7 +60,7 @@ private:
     ScanUiModel scanUi_;
     std::unique_ptr<scan::ScanSession> scanSession_;
     std::optional<platform::windows::ScanResult> completedScan_;
-    std::optional<std::size_t> completedVolumeIndex_;
+    std::optional<ScanUiTarget> completedScanTarget_;
     AppearanceSettings appearance_{core::ThemeMode::System, core::Language::English};
     bool trackingMouse_ = false;
 };

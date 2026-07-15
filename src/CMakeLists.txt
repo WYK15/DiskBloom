@@ -38,6 +38,7 @@ add_library(
     diskbloom_platform_windows
     STATIC
         platform/windows/file_scanner.cpp
+        platform/windows/folder_picker.cpp
         platform/windows/recycle_bin.cpp
         platform/windows/shell_actions.cpp
         platform/windows/system_theme.cpp
