@@ -49,6 +49,20 @@ target_link_libraries(
 target_include_directories(diskbloom_platform_windows PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
+    diskbloom_scan
+    STATIC
+        scan/scan_session.cpp
+)
+target_link_libraries(
+    diskbloom_scan
+    PUBLIC
+        diskbloom_core
+        diskbloom_options
+        diskbloom_platform_windows
+)
+target_include_directories(diskbloom_scan PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_library(
     diskbloom_render
     STATIC
         render/graphics_device.cpp
@@ -80,6 +94,7 @@ target_link_libraries(
         diskbloom_options
         diskbloom_platform_windows
         diskbloom_render
+        diskbloom_scan
     PRIVATE
         dwmapi
         shell32

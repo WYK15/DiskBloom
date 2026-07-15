@@ -3,6 +3,7 @@ add_executable(
     appearance_settings_tests.cpp
     disk_overview_layout_tests.cpp
     file_scanner_tests.cpp
+    scan_session_tests.cpp
     scan_tree_tests.cpp
     string_catalog_tests.cpp
     theme_tests.cpp
@@ -17,6 +18,7 @@ target_link_libraries(
         diskbloom_core
         diskbloom_options
         diskbloom_platform_windows
+        diskbloom_scan
 )
 target_include_directories(
     diskbloom_tests
