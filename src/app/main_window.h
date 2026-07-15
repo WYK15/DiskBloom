@@ -1,6 +1,8 @@
 #pragma once
 
 #include "app/appearance_settings.h"
+#include "app/analyzer_navigation.h"
+#include "app/analyzer_view.h"
 #include "app/disk_overview.h"
 #include "app/scan_ui_state.h"
 #include "core/language.h"
@@ -28,6 +30,7 @@ private:
     [[nodiscard]] bool create(HINSTANCE instance, int showCommand, bool showWindow);
     [[nodiscard]] bool render_frame();
     void handle_overview_command(const OverviewCommand& command);
+    void handle_analyzer_command(const AnalyzerCommand& command);
     void handle_volume_scan(std::size_t volumeIndex);
     void poll_scan_session();
     void show_settings_menu();
@@ -45,6 +48,8 @@ private:
     HWND window_ = nullptr;
     render::GraphicsDevice graphics_;
     DiskOverview overview_;
+    AnalyzerView analyzer_;
+    AnalyzerNavigationState navigation_;
     std::vector<platform::windows::VolumeSnapshot> volumes_;
     ScanUiModel scanUi_;
     std::unique_ptr<scan::ScanSession> scanSession_;

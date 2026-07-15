@@ -145,7 +145,10 @@ AnalyzerLayout compute_analyzer_layout(
     return {
         .header = {0.0F, 0.0F, width, headerHeight},
         .backButton = {16.0F, 10.0F, 60.0F, 54.0F},
-        .titleBounds = {76.0F, 0.0F, std::max(76.0F, width - 32.0F), headerHeight},
+        .minimizeButton = {width - 138.0F, 0.0F, width - 92.0F, headerHeight},
+        .maximizeButton = {width - 92.0F, 0.0F, width - 46.0F, headerHeight},
+        .closeButton = {width - 46.0F, 0.0F, width, headerHeight},
+        .titleBounds = {76.0F, 0.0F, std::max(76.0F, width - 150.0F), headerHeight},
         .chartBounds = {
             centerX - radius,
             centerY - radius,
@@ -174,6 +177,15 @@ AnalyzerHitTarget hit_test_analyzer_layout(
     if (contains(layout.backButton, xDip, yDip)) {
         return AnalyzerHitTarget::Back;
     }
+    if (contains(layout.minimizeButton, xDip, yDip)) {
+        return AnalyzerHitTarget::MinimizeWindow;
+    }
+    if (contains(layout.maximizeButton, xDip, yDip)) {
+        return AnalyzerHitTarget::MaximizeWindow;
+    }
+    if (contains(layout.closeButton, xDip, yDip)) {
+        return AnalyzerHitTarget::CloseWindow;
+    }
     const auto dx = xDip - layout.chartGeometry.centerX;
     const auto dy = yDip - layout.chartGeometry.centerY;
     const auto radius = std::hypot(dx, dy);
@@ -193,6 +205,7 @@ struct AnalyzerView::Resources {
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> secondary;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> hover;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> border;
+    Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> danger;
     std::array<Microsoft::WRL::ComPtr<ID2D1SolidColorBrush>, palette_size> palette;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> titleFormat;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> detailHeadingFormat;
@@ -274,7 +287,8 @@ bool AnalyzerView::ensure_resources(
         || !makeBrush(theme.primaryText, resources->primary)
         || !makeBrush(theme.secondaryText, resources->secondary)
         || !makeBrush(theme.buttonHover, resources->hover)
-        || !makeBrush(theme.border, resources->border)) {
+        || !makeBrush(theme.border, resources->border)
+        || !makeBrush(theme.danger, resources->danger)) {
         return false;
     }
     for (std::size_t index = 0U; index < palette_size; ++index) {
@@ -370,7 +384,7 @@ bool AnalyzerView::draw(
 
     auto* context = resources_->context;
     context->FillRectangle(to_d2d_rect(layout_.header), resources_->header.Get());
-    if (backHovered_) {
+    if (hoveredChrome_ == AnalyzerHitTarget::Back) {
         context->FillRoundedRectangle(
             D2D1::RoundedRect(to_d2d_rect(layout_.backButton), 5.0F, 5.0F),
             resources_->hover.Get());
@@ -381,6 +395,48 @@ bool AnalyzerView::draw(
         {layout_.backButton.left + 18.0F, backCenterY},
         resources_->primary.Get(),
         2.0F);
+
+    const auto drawWindowButtonBackground = [&](const AnalyzerRectF& bounds, const AnalyzerHitTarget target) {
+        if (hoveredChrome_ == target) {
+            context->FillRectangle(
+                to_d2d_rect(bounds),
+                target == AnalyzerHitTarget::CloseWindow
+                    ? resources_->danger.Get()
+                    : resources_->hover.Get());
+        }
+    };
+    drawWindowButtonBackground(layout_.minimizeButton, AnalyzerHitTarget::MinimizeWindow);
+    drawWindowButtonBackground(layout_.maximizeButton, AnalyzerHitTarget::MaximizeWindow);
+    drawWindowButtonBackground(layout_.closeButton, AnalyzerHitTarget::CloseWindow);
+
+    const auto buttonCenter = [](const AnalyzerRectF& bounds) {
+        return D2D1::Point2F(
+            (bounds.left + bounds.right) * 0.5F,
+            (bounds.top + bounds.bottom) * 0.5F);
+    };
+    const auto minimizeCenter = buttonCenter(layout_.minimizeButton);
+    context->DrawLine(
+        {minimizeCenter.x - 6.0F, minimizeCenter.y},
+        {minimizeCenter.x + 6.0F, minimizeCenter.y},
+        resources_->primary.Get(),
+        1.5F);
+    const auto maximizeCenter = buttonCenter(layout_.maximizeButton);
+    context->DrawRectangle(
+        {maximizeCenter.x - 5.0F, maximizeCenter.y - 5.0F,
+         maximizeCenter.x + 5.0F, maximizeCenter.y + 5.0F},
+        resources_->primary.Get(),
+        1.25F);
+    const auto closeCenter = buttonCenter(layout_.closeButton);
+    context->DrawLine(
+        {closeCenter.x - 5.0F, closeCenter.y - 5.0F},
+        {closeCenter.x + 5.0F, closeCenter.y + 5.0F},
+        resources_->primary.Get(),
+        1.5F);
+    context->DrawLine(
+        {closeCenter.x + 5.0F, closeCenter.y - 5.0F},
+        {closeCenter.x - 5.0F, closeCenter.y + 5.0F},
+        resources_->primary.Get(),
+        1.5F);
     context->DrawLine(
         {layout_.backButton.left + 18.0F, backCenterY},
         {layout_.backButton.left + 27.0F, backCenterY + 9.0F},
@@ -479,7 +535,12 @@ bool AnalyzerView::draw(
 
 bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
     const auto target = hit_test_analyzer_layout(layout_, xDip, yDip);
-    const auto nextBackHovered = target == AnalyzerHitTarget::Back;
+    const auto nextChrome = target == AnalyzerHitTarget::Back
+            || target == AnalyzerHitTarget::MinimizeWindow
+            || target == AnalyzerHitTarget::MaximizeWindow
+            || target == AnalyzerHitTarget::CloseWindow
+        ? target
+        : AnalyzerHitTarget::None;
     std::optional<core::SunburstHit> nextSegment;
     if (target == AnalyzerHitTarget::Chart) {
         nextSegment = core::hit_test_sunburst(
@@ -491,19 +552,19 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
     const auto sameSegment = hoveredSegment_.has_value() == nextSegment.has_value()
         && (!hoveredSegment_.has_value()
             || hoveredSegment_->segmentIndex == nextSegment->segmentIndex);
-    if (backHovered_ == nextBackHovered && sameSegment) {
+    if (hoveredChrome_ == nextChrome && sameSegment) {
         return false;
     }
-    backHovered_ = nextBackHovered;
+    hoveredChrome_ = nextChrome;
     hoveredSegment_ = nextSegment;
     return true;
 }
 
 bool AnalyzerView::pointer_left() {
-    if (!backHovered_ && !hoveredSegment_.has_value()) {
+    if (hoveredChrome_ == AnalyzerHitTarget::None && !hoveredSegment_.has_value()) {
         return false;
     }
-    backHovered_ = false;
+    hoveredChrome_ = AnalyzerHitTarget::None;
     hoveredSegment_.reset();
     return true;
 }
@@ -517,6 +578,18 @@ void AnalyzerView::pointer_pressed(const float xDip, const float yDip) {
         pendingCommand_ = parent == core::invalid_node
             ? AnalyzerCommand{AnalyzerCommandKind::ReturnToOverview, core::invalid_node}
             : AnalyzerCommand{AnalyzerCommandKind::NavigateToParent, parent};
+        return;
+    }
+    if (target == AnalyzerHitTarget::MinimizeWindow) {
+        pendingCommand_ = {AnalyzerCommandKind::MinimizeWindow, core::invalid_node};
+        return;
+    }
+    if (target == AnalyzerHitTarget::MaximizeWindow) {
+        pendingCommand_ = {AnalyzerCommandKind::ToggleMaximizeWindow, core::invalid_node};
+        return;
+    }
+    if (target == AnalyzerHitTarget::CloseWindow) {
+        pendingCommand_ = {AnalyzerCommandKind::CloseWindow, core::invalid_node};
         return;
     }
     if (target != AnalyzerHitTarget::Chart || tree_ == nullptr) {

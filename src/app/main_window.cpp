@@ -116,10 +116,51 @@ bool MainWindow::render_frame() {
 
     const auto width = pixels_to_dip(client.right - client.left);
     const auto height = pixels_to_dip(client.bottom - client.top);
-    if (!overview_.draw(graphics_, theme, appearance_.language, width, height)) {
+    const auto rendered = navigation_.view == MainContentView::Analyzer
+        ? analyzer_.draw(graphics_, theme, appearance_.language, width, height)
+        : overview_.draw(graphics_, theme, appearance_.language, width, height);
+    if (!rendered) {
         return false;
     }
     return SUCCEEDED(graphics_.end_draw());
+}
+
+void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
+    switch (command.kind) {
+    case AnalyzerCommandKind::MinimizeWindow:
+        ShowWindow(window_, SW_MINIMIZE);
+        return;
+    case AnalyzerCommandKind::ToggleMaximizeWindow:
+        ShowWindow(window_, IsZoomed(window_) ? SW_RESTORE : SW_MAXIMIZE);
+        return;
+    case AnalyzerCommandKind::CloseWindow:
+        DestroyWindow(window_);
+        return;
+    case AnalyzerCommandKind::ReturnToOverview:
+    case AnalyzerCommandKind::NavigateToNode:
+    case AnalyzerCommandKind::NavigateToParent:
+    case AnalyzerCommandKind::SelectNode:
+        break;
+    }
+    if (!completedScan_.has_value()) {
+        return;
+    }
+    const auto previousRoot = navigation_.root;
+    const auto previousSelected = navigation_.selected;
+    if (!apply_analyzer_command(navigation_, completedScan_->tree, command)) {
+        return;
+    }
+    if (navigation_.view == MainContentView::Analyzer) {
+        if (navigation_.root != previousRoot) {
+            (void)analyzer_.set_root(navigation_.root);
+        }
+        if (navigation_.selected != previousSelected) {
+            analyzer_.set_selected_node(navigation_.selected);
+        }
+    } else {
+        (void)analyzer_.pointer_left();
+    }
+    InvalidateRect(window_, nullptr, FALSE);
 }
 
 void MainWindow::handle_overview_command(const OverviewCommand& command) {
@@ -201,6 +242,10 @@ void MainWindow::poll_scan_session() {
             result.has_value()
             && result->completion == platform::windows::ScanCompletion::Completed) {
             completedScan_ = std::move(*result);
+            if (!completedScan_->tree.nodes().empty()
+                && open_analyzer(navigation_, completedScan_->tree, 0U)) {
+                analyzer_.set_tree(&completedScan_->tree, 0U);
+            }
         }
         (void)release_terminal_scan(scanUi_);
         KillTimer(window_, scan_timer_id);
@@ -387,7 +432,9 @@ LRESULT MainWindow::handle_message(
         const auto x = pixels_to_dip(client_point.x);
         const auto y = pixels_to_dip(client_point.y);
         const auto width = pixels_to_dip(client.right - client.left);
-        if (y < 76.0F && x < width - 138.0F) {
+        const auto analyzer_back = navigation_.view == MainContentView::Analyzer
+            && x < 76.0F;
+        if (y < 76.0F && x < width - 138.0F && !analyzer_back) {
             return HTCAPTION;
         }
         return HTCLIENT;
@@ -429,27 +476,43 @@ LRESULT MainWindow::handle_message(
             TrackMouseEvent(&tracking);
             trackingMouse_ = true;
         }
-        if (overview_.pointer_moved(
-                pixels_to_dip(GET_X_LPARAM(lParam)),
-                pixels_to_dip(GET_Y_LPARAM(lParam)))) {
+        const auto x = pixels_to_dip(GET_X_LPARAM(lParam));
+        const auto y = pixels_to_dip(GET_Y_LPARAM(lParam));
+        const auto changed = navigation_.view == MainContentView::Analyzer
+            ? analyzer_.pointer_moved(x, y)
+            : overview_.pointer_moved(x, y);
+        if (changed) {
             InvalidateRect(window_, nullptr, FALSE);
         }
         return 0;
     }
 
-    case WM_MOUSELEAVE:
+    case WM_MOUSELEAVE: {
         trackingMouse_ = false;
-        if (overview_.pointer_left()) {
+        const auto changed = navigation_.view == MainContentView::Analyzer
+            ? analyzer_.pointer_left()
+            : overview_.pointer_left();
+        if (changed) {
             InvalidateRect(window_, nullptr, FALSE);
         }
         return 0;
+    }
 
     case WM_LBUTTONUP:
-        overview_.pointer_pressed(
-            pixels_to_dip(GET_X_LPARAM(lParam)),
-            pixels_to_dip(GET_Y_LPARAM(lParam)));
-        if (const auto command = overview_.take_command(); command.has_value()) {
-            handle_overview_command(*command);
+        if (navigation_.view == MainContentView::Analyzer) {
+            analyzer_.pointer_pressed(
+                pixels_to_dip(GET_X_LPARAM(lParam)),
+                pixels_to_dip(GET_Y_LPARAM(lParam)));
+            if (const auto command = analyzer_.take_command(); command.has_value()) {
+                handle_analyzer_command(*command);
+            }
+        } else {
+            overview_.pointer_pressed(
+                pixels_to_dip(GET_X_LPARAM(lParam)),
+                pixels_to_dip(GET_Y_LPARAM(lParam)));
+            if (const auto command = overview_.take_command(); command.has_value()) {
+                handle_overview_command(*command);
+            }
         }
         return 0;
 

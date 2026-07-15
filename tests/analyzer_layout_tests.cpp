@@ -35,6 +35,9 @@ TEST_CASE(analyzer_layout_keeps_chart_and_details_inside_supported_viewports) {
         const AnalyzerRectF window{0.0F, 0.0F, viewport[0], viewport[1]};
         CHECK(inside(layout.header, window));
         CHECK(inside(layout.backButton, layout.header));
+        CHECK(inside(layout.minimizeButton, layout.header));
+        CHECK(inside(layout.maximizeButton, layout.header));
+        CHECK(inside(layout.closeButton, layout.header));
         CHECK(inside(layout.chartBounds, window));
         CHECK(inside(layout.detailsBounds, window));
         CHECK(!overlaps(layout.chartBounds, layout.detailsBounds));
@@ -73,4 +76,9 @@ TEST_CASE(analyzer_hit_test_distinguishes_back_chart_and_empty_space) {
               layout.detailsBounds.left + 4.0F,
               layout.detailsBounds.top + 4.0F)
         == AnalyzerHitTarget::None);
+    CHECK(hit_test_analyzer_layout(
+              layout,
+              (layout.closeButton.left + layout.closeButton.right) * 0.5F,
+              (layout.closeButton.top + layout.closeButton.bottom) * 0.5F)
+        == AnalyzerHitTarget::CloseWindow);
 }

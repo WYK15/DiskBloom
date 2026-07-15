@@ -25,6 +25,9 @@ struct AnalyzerRectF {
 struct AnalyzerLayout {
     AnalyzerRectF header;
     AnalyzerRectF backButton;
+    AnalyzerRectF minimizeButton;
+    AnalyzerRectF maximizeButton;
+    AnalyzerRectF closeButton;
     AnalyzerRectF titleBounds;
     AnalyzerRectF chartBounds;
     AnalyzerRectF detailsBounds;
@@ -35,6 +38,9 @@ enum class AnalyzerHitTarget {
     None,
     Back,
     Chart,
+    MinimizeWindow,
+    MaximizeWindow,
+    CloseWindow,
 };
 
 [[nodiscard]] AnalyzerLayout compute_analyzer_layout(
@@ -52,6 +58,9 @@ enum class AnalyzerCommandKind {
     NavigateToNode,
     NavigateToParent,
     SelectNode,
+    MinimizeWindow,
+    ToggleMaximizeWindow,
+    CloseWindow,
 };
 
 struct AnalyzerCommand {
@@ -100,7 +109,7 @@ private:
     core::SunburstLayout sunburst_;
     AnalyzerLayout layout_{};
     std::optional<core::SunburstHit> hoveredSegment_;
-    bool backHovered_ = false;
+    AnalyzerHitTarget hoveredChrome_ = AnalyzerHitTarget::None;
     std::optional<AnalyzerCommand> pendingCommand_;
     std::size_t layoutRevision_ = 0U;
     std::unique_ptr<Resources> resources_;
