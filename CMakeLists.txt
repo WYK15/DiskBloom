@@ -6,7 +6,11 @@ include(CTest)
 
 add_subdirectory(src)
 
+option(DISKBLOOM_BUILD_BENCHMARKS "Build DiskBloom performance benchmarks" ON)
+if(DISKBLOOM_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
+endif()
+
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
-

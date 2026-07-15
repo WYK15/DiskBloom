@@ -1,0 +1,15 @@
+add_executable(
+    diskbloom_scan_tree_benchmark
+    scan_tree_benchmark.cpp
+)
+target_link_libraries(
+    diskbloom_scan_tree_benchmark
+    PRIVATE
+        diskbloom_core
+        diskbloom_options
+)
+target_include_directories(
+    diskbloom_scan_tree_benchmark
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)
