@@ -70,6 +70,7 @@ RecycleResult recycle_paths(
 
     const DWORD flags = static_cast<DWORD>(
         FOF_ALLOWUNDO
+        | FOF_NOCONFIRMATION
         | FOF_WANTNUKEWARNING
         | FOFX_RECYCLEONDELETE
         | FOFX_EARLYFAILURE);

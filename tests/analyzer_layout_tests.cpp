@@ -41,9 +41,13 @@ TEST_CASE(analyzer_layout_keeps_chart_and_details_inside_supported_viewports) {
         CHECK(inside(layout.chartBounds, window));
         CHECK(inside(layout.detailsBounds, window));
         CHECK(inside(layout.actionBar, window));
+        CHECK(inside(layout.reviewButton, layout.actionBar));
+        CHECK(inside(layout.addReviewButton, layout.actionBar));
         CHECK(inside(layout.previewButton, layout.actionBar));
         CHECK(inside(layout.revealButton, layout.actionBar));
         CHECK(!overlaps(layout.chartBounds, layout.detailsBounds));
+        CHECK(!overlaps(layout.reviewButton, layout.addReviewButton));
+        CHECK(!overlaps(layout.addReviewButton, layout.previewButton));
         CHECK(!overlaps(layout.previewButton, layout.revealButton));
         CHECK(layout.chartGeometry.innerRadius > 0.0F);
         CHECK(layout.chartGeometry.ringWidth > 0.0F);
@@ -95,4 +99,14 @@ TEST_CASE(analyzer_hit_test_distinguishes_back_chart_and_empty_space) {
               layout.revealButton.left + 4.0F,
               layout.revealButton.top + 4.0F)
         == AnalyzerHitTarget::Reveal);
+    CHECK(hit_test_analyzer_layout(
+              layout,
+              layout.addReviewButton.left + 4.0F,
+              layout.addReviewButton.top + 4.0F)
+        == AnalyzerHitTarget::AddToReview);
+    CHECK(hit_test_analyzer_layout(
+              layout,
+              layout.reviewButton.left + 4.0F,
+              layout.reviewButton.top + 4.0F)
+        == AnalyzerHitTarget::ReviewDelete);
 }

@@ -165,6 +165,8 @@ AnalyzerLayout compute_analyzer_layout(
             actionTop - 16.0F,
         },
         .actionBar = {0.0F, actionTop, width, height},
+        .reviewButton = {width - 624.0F, actionTop + 10.0F, width - 512.0F, height - 10.0F},
+        .addReviewButton = {width - 500.0F, actionTop + 10.0F, width - 344.0F, height - 10.0F},
         .previewButton = {width - 332.0F, actionTop + 10.0F, width - 220.0F, height - 10.0F},
         .revealButton = {width - 208.0F, actionTop + 10.0F, width - 28.0F, height - 10.0F},
         .chartGeometry = {
@@ -197,6 +199,12 @@ AnalyzerHitTarget hit_test_analyzer_layout(
     }
     if (contains(layout.revealButton, xDip, yDip)) {
         return AnalyzerHitTarget::Reveal;
+    }
+    if (contains(layout.addReviewButton, xDip, yDip)) {
+        return AnalyzerHitTarget::AddToReview;
+    }
+    if (contains(layout.reviewButton, xDip, yDip)) {
+        return AnalyzerHitTarget::ReviewDelete;
     }
     const auto dx = xDip - layout.chartGeometry.centerX;
     const auto dy = yDip - layout.chartGeometry.centerY;
@@ -320,6 +328,13 @@ void AnalyzerView::set_selected_node(const core::NodeIndex node) noexcept {
     if (tree_ != nullptr && node < tree_->nodes().size()) {
         selectedNode_ = node;
     }
+}
+
+void AnalyzerView::set_review_summary(
+    const std::size_t itemCount,
+    const std::uint64_t totalBytes) noexcept {
+    reviewItemCount_ = itemCount;
+    reviewTotalBytes_ = totalBytes;
 }
 
 core::NodeIndex AnalyzerView::current_root() const noexcept {
@@ -592,7 +607,8 @@ bool AnalyzerView::draw(
     const auto drawActionButton = [&](
                                       const AnalyzerRectF& bounds,
                                       const AnalyzerHitTarget target,
-                                      const core::StringId label) {
+                                      const core::StringId label,
+                                      ID2D1Brush* textBrush) {
         context->FillRoundedRectangle(
             D2D1::RoundedRect(to_d2d_rect(bounds), 5.0F, 5.0F),
             hoveredChrome_ == target ? resources_->hover.Get() : resources_->surface.Get());
@@ -604,21 +620,50 @@ bool AnalyzerView::draw(
             core::get_string(language, label),
             resources_->buttonFormat.Get(),
             bounds,
-            resources_->primary.Get());
+            textBrush);
     };
+    drawActionButton(
+        layout_.reviewButton,
+        AnalyzerHitTarget::ReviewDelete,
+        core::StringId::DeleteReviewed,
+        reviewItemCount_ > 0U ? resources_->danger.Get() : resources_->secondary.Get());
+    drawActionButton(
+        layout_.addReviewButton,
+        AnalyzerHitTarget::AddToReview,
+        core::StringId::AddToReview,
+        resources_->primary.Get());
     drawActionButton(
         layout_.previewButton,
         AnalyzerHitTarget::Preview,
-        core::StringId::Open);
+        core::StringId::Open,
+        resources_->primary.Get());
     drawActionButton(
         layout_.revealButton,
         AnalyzerHitTarget::Reveal,
-        core::StringId::ShowInExplorer);
-    if (selectedNode_ < tree_->nodes().size()) {
+        core::StringId::ShowInExplorer,
+        resources_->primary.Get());
+    if (reviewItemCount_ > 0U) {
+        auto reviewText = std::to_wstring(reviewItemCount_);
+        reviewText.append(L" ");
+        reviewText.append(core::get_string(language, core::StringId::Items));
+        reviewText.append(L"  ");
+        reviewText.append(format_bytes(reviewTotalBytes_));
+        const AnalyzerRectF reviewBounds{
+            28.0F,
+            layout_.actionBar.top,
+            std::max(28.0F, layout_.reviewButton.left - 12.0F),
+            layout_.actionBar.bottom,
+        };
+        drawText(
+            reviewText,
+            resources_->detailFormat.Get(),
+            reviewBounds,
+            resources_->secondary.Get());
+    } else if (selectedNode_ < tree_->nodes().size()) {
         const AnalyzerRectF selectedBounds{
             28.0F,
             layout_.actionBar.top,
-            std::max(28.0F, layout_.previewButton.left - 24.0F),
+            std::max(28.0F, layout_.reviewButton.left - 12.0F),
             layout_.actionBar.bottom,
         };
         drawText(
@@ -735,6 +780,8 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
             || target == AnalyzerHitTarget::CloseWindow
             || target == AnalyzerHitTarget::Preview
             || target == AnalyzerHitTarget::Reveal
+            || target == AnalyzerHitTarget::AddToReview
+            || target == AnalyzerHitTarget::ReviewDelete
         ? target
         : AnalyzerHitTarget::None;
     std::optional<core::SunburstHit> nextSegment;
@@ -825,6 +872,17 @@ void AnalyzerView::pointer_pressed(const float xDip, const float yDip) {
     }
     if (target == AnalyzerHitTarget::Reveal) {
         pendingCommand_ = {AnalyzerCommandKind::RevealNode, selectedNode_};
+        return;
+    }
+    if (target == AnalyzerHitTarget::AddToReview) {
+        pendingCommand_ = {AnalyzerCommandKind::AddToReview, selectedNode_};
+        return;
+    }
+    if (target == AnalyzerHitTarget::ReviewDelete) {
+        pendingCommand_ = reviewItemCount_ > 0U
+            ? std::optional<AnalyzerCommand>(
+                AnalyzerCommand{AnalyzerCommandKind::ConfirmReview, core::invalid_node})
+            : std::nullopt;
         return;
     }
     if (target != AnalyzerHitTarget::Chart || tree_ == nullptr) {

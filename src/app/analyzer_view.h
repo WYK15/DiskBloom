@@ -34,6 +34,8 @@ struct AnalyzerLayout {
     AnalyzerRectF chartBounds;
     AnalyzerRectF detailsBounds;
     AnalyzerRectF actionBar;
+    AnalyzerRectF reviewButton;
+    AnalyzerRectF addReviewButton;
     AnalyzerRectF previewButton;
     AnalyzerRectF revealButton;
     core::SunburstGeometry chartGeometry;
@@ -77,6 +79,8 @@ enum class AnalyzerHitTarget {
     CloseWindow,
     Preview,
     Reveal,
+    AddToReview,
+    ReviewDelete,
 };
 
 [[nodiscard]] AnalyzerLayout compute_analyzer_layout(
@@ -99,6 +103,8 @@ enum class AnalyzerCommandKind {
     CloseWindow,
     PreviewNode,
     RevealNode,
+    AddToReview,
+    ConfirmReview,
 };
 
 struct AnalyzerCommand {
@@ -117,6 +123,7 @@ public:
     void set_tree(const core::ScanTree* tree, core::NodeIndex root);
     [[nodiscard]] bool set_root(core::NodeIndex root);
     void set_selected_node(core::NodeIndex node) noexcept;
+    void set_review_summary(std::size_t itemCount, std::uint64_t totalBytes) noexcept;
     [[nodiscard]] core::NodeIndex current_root() const noexcept;
 
     [[nodiscard]] bool draw(
@@ -153,6 +160,8 @@ private:
     std::optional<core::SunburstHit> hoveredSegment_;
     std::optional<std::size_t> hoveredChild_;
     std::size_t childScrollOffset_ = 0U;
+    std::size_t reviewItemCount_ = 0U;
+    std::uint64_t reviewTotalBytes_ = 0U;
     AnalyzerHitTarget hoveredChrome_ = AnalyzerHitTarget::None;
     std::optional<AnalyzerCommand> pendingCommand_;
     std::size_t layoutRevision_ = 0U;

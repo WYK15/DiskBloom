@@ -3,6 +3,7 @@
 #include "core/string_catalog.h"
 #include "core/node_path.h"
 #include "platform/windows/shell_actions.h"
+#include "platform/windows/recycle_bin.h"
 #include "platform/windows/system_theme.h"
 #include "platform/windows/volume_service.h"
 
@@ -10,6 +11,7 @@
 #include <dwmapi.h>
 
 #include <algorithm>
+#include <array>
 #include <string>
 
 namespace diskbloom::app {
@@ -21,6 +23,25 @@ constexpr UINT scan_timer_interval_ms = 33U;
 
 std::wstring menu_text(const core::Language language, const core::StringId id) {
     return std::wstring(core::get_string(language, id));
+}
+
+std::wstring format_bytes(const std::uint64_t bytes) {
+    constexpr std::array units{L"B", L"KB", L"MB", L"GB", L"TB", L"PB"};
+    auto value = static_cast<double>(bytes);
+    std::size_t unit = 0U;
+    while (value >= 1024.0 && unit + 1U < units.size()) {
+        value /= 1024.0;
+        ++unit;
+    }
+    std::array<wchar_t, 64> buffer{};
+    _snwprintf_s(
+        buffer.data(),
+        buffer.size(),
+        _TRUNCATE,
+        unit == 0U || value >= 100.0 ? L"%.0f %ls" : L"%.1f %ls",
+        value,
+        units[unit]);
+    return std::wstring(buffer.data());
 }
 
 } // namespace
@@ -161,6 +182,18 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
         }
         return;
     }
+    case AnalyzerCommandKind::AddToReview:
+        if (completedScan_.has_value()
+            && deletionReview_.add(completedScan_->tree, command.node)) {
+            analyzer_.set_review_summary(
+                deletionReview_.nodes().size(),
+                deletionReview_.total_bytes());
+            InvalidateRect(window_, nullptr, FALSE);
+        }
+        return;
+    case AnalyzerCommandKind::ConfirmReview:
+        confirm_review_deletion();
+        return;
     case AnalyzerCommandKind::ReturnToOverview:
     case AnalyzerCommandKind::NavigateToNode:
     case AnalyzerCommandKind::NavigateToParent:
@@ -186,6 +219,72 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
         (void)analyzer_.pointer_left();
     }
     InvalidateRect(window_, nullptr, FALSE);
+}
+
+void MainWindow::confirm_review_deletion() {
+    if (!completedScan_.has_value() || deletionReview_.nodes().empty()) {
+        return;
+    }
+
+    std::vector<std::wstring> paths;
+    paths.reserve(deletionReview_.nodes().size());
+    for (const auto node : deletionReview_.nodes()) {
+        auto path = core::build_node_path(
+            completedScan_->tree,
+            node,
+            completedScan_->rootPath);
+        if (!path.has_value()) {
+            MessageBoxW(
+                window_,
+                core::get_string(appearance_.language, core::StringId::ActionFailed).data(),
+                core::get_string(appearance_.language, core::StringId::AppTitle).data(),
+                MB_OK | MB_ICONERROR);
+            return;
+        }
+        paths.push_back(std::move(*path));
+    }
+
+    auto confirmation = std::wstring(
+        core::get_string(appearance_.language, core::StringId::ConfirmRecycle));
+    confirmation.append(L"\n\n");
+    confirmation.append(std::to_wstring(deletionReview_.nodes().size()));
+    confirmation.append(L" ");
+    confirmation.append(core::get_string(appearance_.language, core::StringId::Items));
+    confirmation.append(L"  ");
+    confirmation.append(format_bytes(deletionReview_.total_bytes()));
+    if (MessageBoxW(
+            window_,
+            confirmation.c_str(),
+            core::get_string(appearance_.language, core::StringId::AppTitle).data(),
+            MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2)
+        != IDYES) {
+        return;
+    }
+
+    const auto result = platform::windows::recycle_paths(paths, window_);
+    if (result == platform::windows::RecycleResult::Cancelled) {
+        return;
+    }
+    if (result != platform::windows::RecycleResult::Succeeded) {
+        MessageBoxW(
+            window_,
+            core::get_string(appearance_.language, core::StringId::ActionFailed).data(),
+            core::get_string(appearance_.language, core::StringId::AppTitle).data(),
+            MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    const auto volumeIndex = completedVolumeIndex_;
+    deletionReview_.clear();
+    analyzer_.set_review_summary(0U, 0U);
+    analyzer_.set_tree(nullptr, core::invalid_node);
+    navigation_ = {};
+    completedScan_.reset();
+    completedVolumeIndex_.reset();
+    InvalidateRect(window_, nullptr, FALSE);
+    if (volumeIndex.has_value()) {
+        handle_volume_scan(*volumeIndex);
+    }
 }
 
 void MainWindow::handle_overview_command(const OverviewCommand& command) {
@@ -225,6 +324,8 @@ void MainWindow::handle_volume_scan(const std::size_t volumeIndex) {
             return;
         }
         scanSession_ = std::make_unique<scan::ScanSession>();
+        deletionReview_.clear();
+        analyzer_.set_review_summary(0U, 0U);
         try {
             if (!scanSession_->start(volumes_[action.volumeIndex].rootPath)) {
                 (void)apply_scan_snapshot(
@@ -263,10 +364,14 @@ void MainWindow::poll_scan_session() {
     if (sessionState == scan::ScanSessionState::Completed
         || sessionState == scan::ScanSessionState::Cancelled
         || sessionState == scan::ScanSessionState::Failed) {
+        const auto terminalVolume = scanUi_.activeVolume;
         if (auto result = scanSession_->take_result();
             result.has_value()
             && result->completion == platform::windows::ScanCompletion::Completed) {
             completedScan_ = std::move(*result);
+            completedVolumeIndex_ = terminalVolume;
+            deletionReview_.clear();
+            analyzer_.set_review_summary(0U, 0U);
             if (!completedScan_->tree.nodes().empty()
                 && open_analyzer(navigation_, completedScan_->tree, 0U)) {
                 analyzer_.set_tree(&completedScan_->tree, 0U);

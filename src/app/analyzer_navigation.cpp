@@ -56,6 +56,8 @@ bool apply_analyzer_command(
     case AnalyzerCommandKind::CloseWindow:
     case AnalyzerCommandKind::PreviewNode:
     case AnalyzerCommandKind::RevealNode:
+    case AnalyzerCommandKind::AddToReview:
+    case AnalyzerCommandKind::ConfirmReview:
         return false;
     }
     return false;
