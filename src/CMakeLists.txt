@@ -24,6 +24,7 @@ endif()
 add_library(
     diskbloom_core
     STATIC
+        core/scan_tree.cpp
         core/string_catalog.cpp
         core/theme.cpp
 )
