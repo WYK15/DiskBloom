@@ -86,6 +86,7 @@ add_library(
         app/appearance_settings.cpp
         app/disk_overview.cpp
         app/main_window.cpp
+        app/scan_ui_state.cpp
 )
 target_link_libraries(
     diskbloom_app

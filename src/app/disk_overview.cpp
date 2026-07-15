@@ -197,6 +197,13 @@ DiskOverview::~DiskOverview() = default;
 
 void DiskOverview::set_volumes(std::vector<platform::windows::VolumeSnapshot> volumes) {
     volumes_ = std::move(volumes);
+    scan_statuses_.assign(volumes_.size(), VolumeScanStatus{});
+    detail_text_valid_ = false;
+}
+
+void DiskOverview::set_scan_statuses(const std::vector<VolumeScanStatus>& statuses) {
+    scan_statuses_ = statuses;
+    scan_statuses_.resize(volumes_.size());
     detail_text_valid_ = false;
 }
 
@@ -285,14 +292,40 @@ bool DiskOverview::draw(
     if (!detail_text_valid_ || detail_language_ != language) {
         detail_text_.clear();
         detail_text_.reserve(volumes_.size());
-        for (const auto& volume : volumes_) {
-            auto detail = format_bytes(volume.totalBytes);
-            detail.append(L"  ");
-            detail.append(core::get_string(
-                language,
-                volume.kind == platform::windows::VolumeKind::Fixed
-                    ? core::StringId::FixedDrive
-                    : core::StringId::RemovableDrive));
+        for (std::size_t index = 0U; index < volumes_.size(); ++index) {
+            const auto& volume = volumes_[index];
+            const auto& status = scan_statuses_[index];
+            std::wstring detail;
+            switch (status.state) {
+            case VolumeScanState::Idle:
+                detail = format_bytes(volume.totalBytes);
+                detail.append(L"  ");
+                detail.append(core::get_string(
+                    language,
+                    volume.kind == platform::windows::VolumeKind::Fixed
+                        ? core::StringId::FixedDrive
+                        : core::StringId::RemovableDrive));
+                break;
+            case VolumeScanState::Running:
+                detail = core::get_string(language, core::StringId::Scanning);
+                break;
+            case VolumeScanState::Cancelling:
+                detail = core::get_string(language, core::StringId::Cancelling);
+                break;
+            case VolumeScanState::Completed:
+                detail = core::get_string(language, core::StringId::ScanComplete);
+                break;
+            case VolumeScanState::Cancelled:
+                detail = core::get_string(language, core::StringId::ScanCancelled);
+                break;
+            case VolumeScanState::Failed:
+                detail = core::get_string(language, core::StringId::ScanFailed);
+                break;
+            }
+            if (status.state != VolumeScanState::Idle) {
+                detail.append(L"  ");
+                detail.append(format_bytes(status.progress.logicalBytes));
+            }
             detail_text_.push_back(std::move(detail));
         }
         detail_language_ = language;
@@ -396,14 +429,29 @@ bool DiskOverview::draw(
 
         const auto track = D2D1::RoundedRect(to_d2d_rect(row_layout.progressTrack), 4.0F, 4.0F);
         context->FillRoundedRectangle(track, resources_->track.Get());
+        const auto& status = scan_statuses_[index];
+        auto progress_fraction = platform::windows::used_fraction(volumes_[index]);
+        if (status.state != VolumeScanState::Idle) {
+            const auto used_bytes = volumes_[index].totalBytes >= volumes_[index].freeBytes
+                ? volumes_[index].totalBytes - volumes_[index].freeBytes
+                : 0U;
+            progress_fraction = used_bytes == 0U
+                ? 0.0
+                : std::clamp(
+                    static_cast<double>(status.progress.logicalBytes)
+                        / static_cast<double>(used_bytes),
+                    0.0,
+                    1.0);
+        }
         auto used_bounds = row_layout.progressTrack;
         used_bounds.right = used_bounds.left
-            + (used_bounds.right - used_bounds.left)
-                * static_cast<float>(platform::windows::used_fraction(volumes_[index]));
+            + (used_bounds.right - used_bounds.left) * static_cast<float>(progress_fraction);
         if (used_bounds.right > used_bounds.left) {
             context->FillRoundedRectangle(
                 D2D1::RoundedRect(to_d2d_rect(used_bounds), 4.0F, 4.0F),
-                resources_->accent.Get());
+                status.state == VolumeScanState::Failed
+                    ? resources_->danger.Get()
+                    : resources_->accent.Get());
         }
 
         const auto button_brush = hovered(OverviewCommandKind::ScanVolume, index)
@@ -417,7 +465,12 @@ bool DiskOverview::draw(
             resources_->border.Get(),
             1.0F);
         draw_text(
-            core::get_string(language, core::StringId::Scan),
+            core::get_string(
+                language,
+                status.state == VolumeScanState::Running
+                        || status.state == VolumeScanState::Cancelling
+                    ? core::StringId::Cancel
+                    : core::StringId::Scan),
             resources_->buttonFormat.Get(),
             row_layout.scanButton,
             resources_->primaryText.Get());

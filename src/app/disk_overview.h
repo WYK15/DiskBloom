@@ -9,6 +9,7 @@
 
 #include "core/language.h"
 #include "core/theme.h"
+#include "app/scan_ui_state.h"
 #include "platform/windows/volume_service.h"
 
 namespace diskbloom::render {
@@ -76,6 +77,7 @@ public:
     DiskOverview& operator=(const DiskOverview&) = delete;
 
     void set_volumes(std::vector<platform::windows::VolumeSnapshot> volumes);
+    void set_scan_statuses(const std::vector<VolumeScanStatus>& statuses);
     [[nodiscard]] bool draw(
         render::GraphicsDevice& graphics,
         const core::ThemeTokens& theme,
@@ -97,6 +99,7 @@ private:
         core::Language language);
 
     std::vector<platform::windows::VolumeSnapshot> volumes_;
+    std::vector<VolumeScanStatus> scan_statuses_;
     std::vector<std::wstring> detail_text_;
     core::Language detail_language_ = core::Language::English;
     bool detail_text_valid_ = false;

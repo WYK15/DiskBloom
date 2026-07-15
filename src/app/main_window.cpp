@@ -14,6 +14,8 @@ namespace diskbloom::app {
 namespace {
 
 constexpr wchar_t window_class_name[] = L"DiskBloom.MainWindow";
+constexpr UINT_PTR scan_timer_id = 1U;
+constexpr UINT scan_timer_interval_ms = 33U;
 
 std::wstring menu_text(const core::Language language, const core::StringId id) {
     return std::wstring(core::get_string(language, id));
@@ -123,6 +125,8 @@ bool MainWindow::render_frame() {
 void MainWindow::handle_overview_command(const OverviewCommand& command) {
     switch (command.kind) {
     case OverviewCommandKind::ScanVolume:
+        handle_volume_scan(command.volumeIndex);
+        break;
     case OverviewCommandKind::ScanFolder:
         break;
     case OverviewCommandKind::OpenSettings:
@@ -137,6 +141,76 @@ void MainWindow::handle_overview_command(const OverviewCommand& command) {
     case OverviewCommandKind::CloseWindow:
         DestroyWindow(window_);
         break;
+    }
+}
+
+void MainWindow::handle_volume_scan(const std::size_t volumeIndex) {
+    const auto action = activate_volume(scanUi_, volumeIndex);
+    switch (action.kind) {
+    case ScanUiActionKind::None:
+        return;
+    case ScanUiActionKind::Cancel:
+        if (scanSession_ != nullptr) {
+            scanSession_->cancel();
+        }
+        break;
+    case ScanUiActionKind::Start:
+        if (action.volumeIndex >= volumes_.size()) {
+            return;
+        }
+        scanSession_ = std::make_unique<scan::ScanSession>();
+        try {
+            if (!scanSession_->start(volumes_[action.volumeIndex].rootPath)) {
+                (void)apply_scan_snapshot(
+                    scanUi_,
+                    scan::ScanSessionState::Failed,
+                    {});
+                (void)release_terminal_scan(scanUi_);
+                scanSession_.reset();
+                break;
+            }
+        } catch (...) {
+            (void)apply_scan_snapshot(
+                scanUi_,
+                scan::ScanSessionState::Failed,
+                {});
+            (void)release_terminal_scan(scanUi_);
+            scanSession_.reset();
+            break;
+        }
+        SetTimer(window_, scan_timer_id, scan_timer_interval_ms, nullptr);
+        break;
+    }
+
+    overview_.set_scan_statuses(scanUi_.volumes);
+    InvalidateRect(window_, nullptr, FALSE);
+}
+
+void MainWindow::poll_scan_session() {
+    if (scanSession_ == nullptr) {
+        return;
+    }
+
+    const auto sessionState = scanSession_->state();
+    const auto progress = scanSession_->progress();
+    auto changed = apply_scan_snapshot(scanUi_, sessionState, progress);
+    if (sessionState == scan::ScanSessionState::Completed
+        || sessionState == scan::ScanSessionState::Cancelled
+        || sessionState == scan::ScanSessionState::Failed) {
+        if (auto result = scanSession_->take_result();
+            result.has_value()
+            && result->completion == platform::windows::ScanCompletion::Completed) {
+            completedScan_ = std::move(*result);
+        }
+        (void)release_terminal_scan(scanUi_);
+        KillTimer(window_, scan_timer_id);
+        scanSession_.reset();
+        changed = true;
+    }
+
+    if (changed) {
+        overview_.set_scan_statuses(scanUi_.volumes);
+        InvalidateRect(window_, nullptr, FALSE);
     }
 }
 
@@ -265,9 +339,19 @@ LRESULT MainWindow::handle_message(
         if (!graphics_.initialize(window_)) {
             return -1;
         }
-        overview_.set_volumes(platform::windows::enumerate_volumes());
+        volumes_ = platform::windows::enumerate_volumes();
+        overview_.set_volumes(volumes_);
+        reset_scan_ui(scanUi_, volumes_.size());
+        overview_.set_scan_statuses(scanUi_.volumes);
         apply_appearance();
         return 0;
+
+    case WM_TIMER:
+        if (wParam == scan_timer_id) {
+            poll_scan_session();
+            return 0;
+        }
+        break;
 
     case WM_NCCALCSIZE:
         if (wParam != 0U) {
@@ -399,6 +483,8 @@ LRESULT MainWindow::handle_message(
         return 0;
 
     case WM_DESTROY:
+        KillTimer(window_, scan_timer_id);
+        scanSession_.reset();
         graphics_.discard_device_resources();
         PostQuitMessage(0);
         return 0;

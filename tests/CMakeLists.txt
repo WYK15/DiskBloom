@@ -5,6 +5,7 @@ add_executable(
     file_scanner_tests.cpp
     scan_session_tests.cpp
     scan_tree_tests.cpp
+    scan_ui_state_tests.cpp
     string_catalog_tests.cpp
     theme_tests.cpp
     test_main.cpp

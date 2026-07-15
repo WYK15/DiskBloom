@@ -2,11 +2,17 @@
 
 #include "app/appearance_settings.h"
 #include "app/disk_overview.h"
+#include "app/scan_ui_state.h"
 #include "core/language.h"
 #include "core/theme.h"
 #include "render/graphics_device.h"
+#include "scan/scan_session.h"
 
 #include <Windows.h>
+
+#include <memory>
+#include <optional>
+#include <vector>
 
 namespace diskbloom::app {
 
@@ -22,6 +28,8 @@ private:
     [[nodiscard]] bool create(HINSTANCE instance, int showCommand, bool showWindow);
     [[nodiscard]] bool render_frame();
     void handle_overview_command(const OverviewCommand& command);
+    void handle_volume_scan(std::size_t volumeIndex);
+    void poll_scan_session();
     void show_settings_menu();
     void apply_appearance();
     [[nodiscard]] bool dark_theme_enabled() const noexcept;
@@ -37,6 +45,10 @@ private:
     HWND window_ = nullptr;
     render::GraphicsDevice graphics_;
     DiskOverview overview_;
+    std::vector<platform::windows::VolumeSnapshot> volumes_;
+    ScanUiModel scanUi_;
+    std::unique_ptr<scan::ScanSession> scanSession_;
+    std::optional<platform::windows::ScanResult> completedScan_;
     AppearanceSettings appearance_{core::ThemeMode::System, core::Language::English};
     bool trackingMouse_ = false;
 };
