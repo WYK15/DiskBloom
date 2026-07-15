@@ -1,0 +1,10 @@
+/build/
+/.vs/
+/.worktrees/
+/out/
+/feedback/
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+
