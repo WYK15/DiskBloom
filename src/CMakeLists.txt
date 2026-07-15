@@ -34,6 +34,7 @@ add_library(
     diskbloom_platform_windows
     STATIC
         platform/windows/system_theme.cpp
+        platform/windows/volume_service.cpp
 )
 target_link_libraries(
     diskbloom_platform_windows

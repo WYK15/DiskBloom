@@ -4,6 +4,7 @@ add_executable(
     theme_tests.cpp
     test_main.cpp
     test_support.cpp
+    volume_service_tests.cpp
 )
 target_link_libraries(
     diskbloom_tests
