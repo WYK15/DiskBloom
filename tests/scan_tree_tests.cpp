@@ -4,6 +4,7 @@
 
 using diskbloom::core::ScanNodeFlags;
 using diskbloom::core::ScanTree;
+using diskbloom::core::has_flag;
 using diskbloom::core::invalid_node;
 
 TEST_CASE(scan_tree_aggregates_nested_files) {
@@ -55,4 +56,12 @@ TEST_CASE(scan_tree_rejects_invalid_parent) {
     CHECK(result == invalid_node);
     CHECK(tree.nodes().size() == 1U);
     CHECK(tree.node(root).firstChild == invalid_node);
+}
+
+TEST_CASE(scan_tree_can_mark_existing_node_incomplete) {
+    ScanTree tree;
+    const auto root = tree.add_root(L"root", ScanNodeFlags::Directory);
+    tree.add_flags(root, ScanNodeFlags::Inaccessible | ScanNodeFlags::Incomplete);
+    CHECK(has_flag(tree.node(root).flags, ScanNodeFlags::Inaccessible));
+    CHECK(has_flag(tree.node(root).flags, ScanNodeFlags::Incomplete));
 }

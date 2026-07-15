@@ -29,6 +29,12 @@ NodeIndex ScanTree::add_child(
     return append_node(parent, name, logicalSize, flags);
 }
 
+void ScanTree::add_flags(const NodeIndex index, const ScanNodeFlags flags) noexcept {
+    if (index < nodes_.size()) {
+        nodes_[index].flags |= flags;
+    }
+}
+
 NodeIndex ScanTree::append_node(
     const NodeIndex parent,
     const std::wstring_view name,

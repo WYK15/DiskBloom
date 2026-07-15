@@ -62,6 +62,7 @@ public:
         std::wstring_view name,
         std::uint64_t logicalSize,
         ScanNodeFlags flags);
+    void add_flags(NodeIndex index, ScanNodeFlags flags) noexcept;
 
     void aggregate() noexcept;
 

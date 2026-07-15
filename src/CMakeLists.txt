@@ -34,6 +34,7 @@ target_include_directories(diskbloom_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_library(
     diskbloom_platform_windows
     STATIC
+        platform/windows/file_scanner.cpp
         platform/windows/system_theme.cpp
         platform/windows/volume_service.cpp
 )
