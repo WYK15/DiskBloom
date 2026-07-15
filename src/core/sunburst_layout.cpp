@@ -14,6 +14,7 @@ struct LayoutWork {
     float startAngle = 0.0F;
     float endAngle = 0.0F;
     std::uint16_t childDepth = 0U;
+    std::uint8_t paletteIndex = 0U;
 };
 
 void build_depth_ranges(SunburstLayout& layout) {
@@ -49,7 +50,7 @@ SunburstLayout build_sunburst_layout(
     layout.segments.reserve(options.maxSegments);
     std::vector<LayoutWork> work;
     work.reserve(std::min(options.maxSegments, tree.nodes().size()));
-    work.push_back({root, layout.startAngle, layout.startAngle + full_circle, 0U});
+    work.push_back({root, layout.startAngle, layout.startAngle + full_circle, 0U, 0U});
     const auto minSweep = std::max(options.minSweepRadians, 0.0F);
 
     for (std::size_t workIndex = 0U;
@@ -112,14 +113,16 @@ SunburstLayout build_sunburst_layout(
             }
 
             const auto endAngle = angle + sweep;
+            const auto segmentPalette = current.childDepth == 0U
+                ? static_cast<std::uint8_t>(paletteOrdinal % palette_size)
+                : current.paletteIndex;
             layout.segments.push_back({
                 .node = child,
                 .startAngle = angle,
                 .endAngle = endAngle,
                 .logicalSize = childNode.logicalSize,
                 .depth = current.childDepth,
-                .paletteIndex = static_cast<std::uint8_t>(
-                    (paletteOrdinal + current.childDepth * 3U) % palette_size),
+                .paletteIndex = segmentPalette,
                 .flags = SunburstSegmentFlags::None,
             });
             if (has_flag(childNode.flags, ScanNodeFlags::Directory)
@@ -129,6 +132,7 @@ SunburstLayout build_sunburst_layout(
                     angle,
                     endAngle,
                     static_cast<std::uint16_t>(current.childDepth + 1U),
+                    segmentPalette,
                 });
             }
             angle = endAngle;
@@ -143,8 +147,9 @@ SunburstLayout build_sunburst_layout(
                 .endAngle = current.endAngle,
                 .logicalSize = aggregateBytes,
                 .depth = current.childDepth,
-                .paletteIndex = static_cast<std::uint8_t>(
-                    (paletteOrdinal + current.childDepth * 3U) % palette_size),
+                .paletteIndex = current.childDepth == 0U
+                    ? static_cast<std::uint8_t>(paletteOrdinal % palette_size)
+                    : current.paletteIndex,
                 .flags = SunburstSegmentFlags::Aggregate,
             });
         } else if (layout.segments.size() > parentSegmentBegin) {

@@ -210,6 +210,7 @@ struct AnalyzerView::Resources {
     Microsoft::WRL::ComPtr<IDWriteTextFormat> titleFormat;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> detailHeadingFormat;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> detailFormat;
+    Microsoft::WRL::ComPtr<IDWriteTextFormat> centerFormat;
     std::array<Microsoft::WRL::ComPtr<ID2D1PathGeometry>, palette_size> batches;
     std::size_t geometryRevision = 0U;
     core::SunburstGeometry geometry{};
@@ -311,13 +312,17 @@ bool AnalyzerView::ensure_resources(
     };
     if (!createFormat(24.0F, resources->titleFormat)
         || !createFormat(27.0F, resources->detailHeadingFormat)
-        || !createFormat(18.0F, resources->detailFormat)) {
+        || !createFormat(18.0F, resources->detailFormat)
+        || !createFormat(18.0F, resources->centerFormat)) {
         return false;
     }
     resources->titleFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
     resources->titleFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
     resources->detailHeadingFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
     resources->detailFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+    resources->centerFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+    resources->centerFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+    resources->centerFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
     resources_ = std::move(resources);
     return true;
 }
@@ -479,6 +484,18 @@ bool AnalyzerView::draw(
             centerRadius),
         resources_->border.Get(),
         1.0F);
+    const AnalyzerRectF centerBounds{
+        layout_.chartGeometry.centerX - centerRadius,
+        layout_.chartGeometry.centerY - centerRadius,
+        layout_.chartGeometry.centerX + centerRadius,
+        layout_.chartGeometry.centerY + centerRadius,
+    };
+    const auto rootSizeText = format_bytes(tree_->node(root_).logicalSize);
+    drawText(
+        rootSizeText,
+        resources_->centerFormat.Get(),
+        centerBounds,
+        resources_->primary.Get());
 
     core::NodeIndex detailNode = selectedNode_ < tree_->nodes().size() ? selectedNode_ : root_;
     std::uint64_t detailBytes = tree_->node(detailNode).logicalSize;

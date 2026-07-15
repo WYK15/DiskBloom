@@ -61,6 +61,7 @@ TEST_CASE(sunburst_layout_expands_directories_into_next_band) {
     CHECK(layout.segments[0].depth == 0U);
     CHECK(layout.segments[1].node == file);
     CHECK(layout.segments[1].depth == 1U);
+    CHECK(layout.segments[1].paletteIndex == layout.segments[0].paletteIndex);
     CHECK(near(layout.segments[1].startAngle, layout.segments[0].startAngle));
     CHECK(near(layout.segments[1].endAngle, layout.segments[0].endAngle));
 }
