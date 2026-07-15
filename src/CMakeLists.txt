@@ -45,3 +45,21 @@ target_link_libraries(
         advapi32
 )
 target_include_directories(diskbloom_platform_windows PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_library(
+    diskbloom_render
+    STATIC
+        render/graphics_device.cpp
+)
+target_link_libraries(
+    diskbloom_render
+    PUBLIC
+        diskbloom_core
+        diskbloom_options
+    PRIVATE
+        d2d1
+        d3d11
+        dwrite
+        dxgi
+)
+target_include_directories(diskbloom_render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
