@@ -7,6 +7,7 @@ add_executable(
     scan_tree_tests.cpp
     scan_ui_state_tests.cpp
     string_catalog_tests.cpp
+    sunburst_layout_tests.cpp
     theme_tests.cpp
     test_main.cpp
     test_support.cpp
