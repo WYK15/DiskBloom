@@ -13,6 +13,7 @@ add_executable(
     scan_tree_tests.cpp
     scan_ui_state_tests.cpp
     recycle_bin_tests.cpp
+    recycle_session_tests.cpp
     shell_actions_tests.cpp
     string_catalog_tests.cpp
     sunburst_layout_tests.cpp

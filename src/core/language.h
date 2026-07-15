@@ -32,6 +32,7 @@ enum class StringId : std::size_t {
     AddToReview,
     DeleteReviewed,
     ConfirmRecycle,
+    Recycling,
     ActionFailed,
     Theme,
     ThemeSystem,

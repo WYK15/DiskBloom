@@ -98,6 +98,7 @@ add_library(
         app/deletion_review.cpp
         app/disk_overview.cpp
         app/main_window.cpp
+        app/recycle_session.cpp
         app/scan_ui_state.cpp
 )
 target_link_libraries(

@@ -337,6 +337,14 @@ void AnalyzerView::set_review_summary(
     reviewTotalBytes_ = totalBytes;
 }
 
+void AnalyzerView::set_recycle_in_progress(const bool inProgress) noexcept {
+    recycleInProgress_ = inProgress;
+    if (inProgress) {
+        hoveredChrome_ = AnalyzerHitTarget::None;
+        pendingCommand_.reset();
+    }
+}
+
 core::NodeIndex AnalyzerView::current_root() const noexcept {
     return root_;
 }
@@ -625,7 +633,7 @@ bool AnalyzerView::draw(
     drawActionButton(
         layout_.reviewButton,
         AnalyzerHitTarget::ReviewDelete,
-        core::StringId::DeleteReviewed,
+        recycleInProgress_ ? core::StringId::Recycling : core::StringId::DeleteReviewed,
         reviewItemCount_ > 0U ? resources_->danger.Get() : resources_->secondary.Get());
     drawActionButton(
         layout_.addReviewButton,
@@ -875,11 +883,14 @@ void AnalyzerView::pointer_pressed(const float xDip, const float yDip) {
         return;
     }
     if (target == AnalyzerHitTarget::AddToReview) {
-        pendingCommand_ = {AnalyzerCommandKind::AddToReview, selectedNode_};
+        pendingCommand_ = recycleInProgress_
+            ? std::nullopt
+            : std::optional<AnalyzerCommand>(
+                AnalyzerCommand{AnalyzerCommandKind::AddToReview, selectedNode_});
         return;
     }
     if (target == AnalyzerHitTarget::ReviewDelete) {
-        pendingCommand_ = reviewItemCount_ > 0U
+        pendingCommand_ = reviewItemCount_ > 0U && !recycleInProgress_
             ? std::optional<AnalyzerCommand>(
                 AnalyzerCommand{AnalyzerCommandKind::ConfirmReview, core::invalid_node})
             : std::nullopt;

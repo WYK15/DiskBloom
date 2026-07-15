@@ -5,6 +5,7 @@
 #include "app/analyzer_view.h"
 #include "app/disk_overview.h"
 #include "app/deletion_review.h"
+#include "app/recycle_session.h"
 #include "app/scan_ui_state.h"
 #include "core/language.h"
 #include "core/theme.h"
@@ -38,6 +39,8 @@ private:
     void handle_folder_scan();
     void start_scan(std::wstring rootPath);
     void poll_scan_session();
+    void poll_recycle_session();
+    void finish_recycle_success();
     void show_settings_menu();
     void apply_appearance();
     [[nodiscard]] bool dark_theme_enabled() const noexcept;
@@ -59,6 +62,7 @@ private:
     std::vector<platform::windows::VolumeSnapshot> volumes_;
     ScanUiModel scanUi_;
     std::unique_ptr<scan::ScanSession> scanSession_;
+    std::unique_ptr<RecycleSession> recycleSession_;
     std::optional<platform::windows::ScanResult> completedScan_;
     std::optional<ScanUiTarget> completedScanTarget_;
     AppearanceSettings appearance_{core::ThemeMode::System, core::Language::English};

@@ -20,6 +20,7 @@ namespace {
 
 constexpr wchar_t window_class_name[] = L"DiskBloom.MainWindow";
 constexpr UINT_PTR scan_timer_id = 1U;
+constexpr UINT_PTR recycle_timer_id = 2U;
 constexpr UINT scan_timer_interval_ms = 33U;
 
 std::wstring menu_text(const core::Language language, const core::StringId id) {
@@ -150,6 +151,14 @@ bool MainWindow::render_frame() {
 }
 
 void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
+    const auto recycleBusy = recycleSession_ != nullptr
+        && recycleSession_->state() == RecycleSessionState::Running;
+    if (recycleBusy
+        && command.kind != AnalyzerCommandKind::MinimizeWindow
+        && command.kind != AnalyzerCommandKind::ToggleMaximizeWindow
+        && command.kind != AnalyzerCommandKind::CloseWindow) {
+        return;
+    }
     switch (command.kind) {
     case AnalyzerCommandKind::MinimizeWindow:
         ShowWindow(window_, SW_MINIMIZE);
@@ -253,6 +262,16 @@ void MainWindow::confirm_review_deletion() {
     confirmation.append(core::get_string(appearance_.language, core::StringId::Items));
     confirmation.append(L"  ");
     confirmation.append(format_bytes(deletionReview_.total_bytes()));
+    constexpr std::size_t visible_path_limit = 8U;
+    for (std::size_t index = 0U;
+         index < std::min(paths.size(), visible_path_limit);
+         ++index) {
+        confirmation.append(L"\n");
+        confirmation.append(paths[index]);
+    }
+    if (paths.size() > visible_path_limit) {
+        confirmation.append(L"\n...");
+    }
     if (MessageBoxW(
             window_,
             confirmation.c_str(),
@@ -262,16 +281,30 @@ void MainWindow::confirm_review_deletion() {
         return;
     }
 
-    const auto result = platform::windows::recycle_paths(paths, window_);
-    if (result == platform::windows::RecycleResult::Cancelled) {
-        return;
+    recycleSession_ = std::make_unique<RecycleSession>();
+    try {
+        if (!recycleSession_->start(std::move(paths), window_)) {
+            recycleSession_.reset();
+        }
+    } catch (...) {
+        recycleSession_.reset();
     }
-    if (result != platform::windows::RecycleResult::Succeeded) {
+    if (recycleSession_ == nullptr) {
         MessageBoxW(
             window_,
             core::get_string(appearance_.language, core::StringId::ActionFailed).data(),
             core::get_string(appearance_.language, core::StringId::AppTitle).data(),
             MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    analyzer_.set_recycle_in_progress(true);
+    SetTimer(window_, recycle_timer_id, scan_timer_interval_ms, nullptr);
+    InvalidateRect(window_, nullptr, FALSE);
+}
+
+void MainWindow::finish_recycle_success() {
+    if (!completedScan_.has_value()) {
         return;
     }
 
@@ -294,6 +327,32 @@ void MainWindow::confirm_review_deletion() {
         overview_.set_scan_statuses(scanUi_.volumes, scanUi_.folder);
         InvalidateRect(window_, nullptr, FALSE);
     }
+}
+
+void MainWindow::poll_recycle_session() {
+    if (recycleSession_ == nullptr
+        || recycleSession_->state() == RecycleSessionState::Running) {
+        return;
+    }
+
+    const auto result = recycleSession_->take_result();
+    KillTimer(window_, recycle_timer_id);
+    recycleSession_.reset();
+    analyzer_.set_recycle_in_progress(false);
+
+    if (result == platform::windows::RecycleResult::Succeeded) {
+        finish_recycle_success();
+        return;
+    }
+    if (result.has_value()
+        && result != platform::windows::RecycleResult::Cancelled) {
+        MessageBoxW(
+            window_,
+            core::get_string(appearance_.language, core::StringId::ActionFailed).data(),
+            core::get_string(appearance_.language, core::StringId::AppTitle).data(),
+            MB_OK | MB_ICONERROR);
+    }
+    InvalidateRect(window_, nullptr, FALSE);
 }
 
 void MainWindow::handle_overview_command(const OverviewCommand& command) {
@@ -567,6 +626,10 @@ LRESULT MainWindow::handle_message(
             poll_scan_session();
             return 0;
         }
+        if (wParam == recycle_timer_id) {
+            poll_recycle_session();
+            return 0;
+        }
         break;
 
     case WM_NCCALCSIZE:
@@ -728,7 +791,9 @@ LRESULT MainWindow::handle_message(
 
     case WM_DESTROY:
         KillTimer(window_, scan_timer_id);
+        KillTimer(window_, recycle_timer_id);
         scanSession_.reset();
+        recycleSession_.reset();
         graphics_.discard_device_resources();
         PostQuitMessage(0);
         return 0;

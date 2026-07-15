@@ -124,6 +124,7 @@ public:
     [[nodiscard]] bool set_root(core::NodeIndex root);
     void set_selected_node(core::NodeIndex node) noexcept;
     void set_review_summary(std::size_t itemCount, std::uint64_t totalBytes) noexcept;
+    void set_recycle_in_progress(bool inProgress) noexcept;
     [[nodiscard]] core::NodeIndex current_root() const noexcept;
 
     [[nodiscard]] bool draw(
@@ -162,6 +163,7 @@ private:
     std::size_t childScrollOffset_ = 0U;
     std::size_t reviewItemCount_ = 0U;
     std::uint64_t reviewTotalBytes_ = 0U;
+    bool recycleInProgress_ = false;
     AnalyzerHitTarget hoveredChrome_ = AnalyzerHitTarget::None;
     std::optional<AnalyzerCommand> pendingCommand_;
     std::size_t layoutRevision_ = 0U;
