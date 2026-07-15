@@ -1,10 +1,17 @@
 add_executable(
     diskbloom_tests
     string_catalog_tests.cpp
+    theme_tests.cpp
     test_main.cpp
     test_support.cpp
 )
-target_link_libraries(diskbloom_tests PRIVATE diskbloom_core diskbloom_options)
+target_link_libraries(
+    diskbloom_tests
+    PRIVATE
+        diskbloom_core
+        diskbloom_options
+        diskbloom_platform_windows
+)
 target_include_directories(
     diskbloom_tests
     PRIVATE
