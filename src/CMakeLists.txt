@@ -21,3 +21,10 @@ if(MSVC)
     )
 endif()
 
+add_library(
+    diskbloom_core
+    STATIC
+        core/string_catalog.cpp
+)
+target_link_libraries(diskbloom_core PUBLIC diskbloom_options)
+target_include_directories(diskbloom_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
