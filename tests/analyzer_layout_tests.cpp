@@ -1,0 +1,76 @@
+#include "test_support.h"
+
+#include "app/analyzer_view.h"
+
+#include <array>
+
+using diskbloom::app::AnalyzerHitTarget;
+using diskbloom::app::AnalyzerRectF;
+using diskbloom::app::compute_analyzer_layout;
+using diskbloom::app::hit_test_analyzer_layout;
+
+namespace {
+
+bool inside(const AnalyzerRectF& inner, const AnalyzerRectF& outer) {
+    return inner.left >= outer.left
+        && inner.top >= outer.top
+        && inner.right <= outer.right
+        && inner.bottom <= outer.bottom;
+}
+
+bool overlaps(const AnalyzerRectF& left, const AnalyzerRectF& right) {
+    return left.left < right.right && left.right > right.left
+        && left.top < right.bottom && left.bottom > right.top;
+}
+
+} // namespace
+
+TEST_CASE(analyzer_layout_keeps_chart_and_details_inside_supported_viewports) {
+    constexpr std::array viewports{
+        std::array{800.0F, 600.0F},
+        std::array{1200.0F, 720.0F},
+    };
+    for (const auto& viewport : viewports) {
+        const auto layout = compute_analyzer_layout(viewport[0], viewport[1], 6U);
+        const AnalyzerRectF window{0.0F, 0.0F, viewport[0], viewport[1]};
+        CHECK(inside(layout.header, window));
+        CHECK(inside(layout.backButton, layout.header));
+        CHECK(inside(layout.chartBounds, window));
+        CHECK(inside(layout.detailsBounds, window));
+        CHECK(!overlaps(layout.chartBounds, layout.detailsBounds));
+        CHECK(layout.chartGeometry.innerRadius > 0.0F);
+        CHECK(layout.chartGeometry.ringWidth > 0.0F);
+    }
+}
+
+TEST_CASE(analyzer_layout_chart_geometry_matches_chart_bounds) {
+    const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 4U);
+    const auto radius = (layout.chartBounds.right - layout.chartBounds.left) * 0.5F;
+    CHECK(layout.chartGeometry.centerX == (layout.chartBounds.left + layout.chartBounds.right) * 0.5F);
+    CHECK(layout.chartGeometry.centerY == (layout.chartBounds.top + layout.chartBounds.bottom) * 0.5F);
+    CHECK(std::abs(
+              layout.chartGeometry.innerRadius
+              + layout.chartGeometry.ringWidth * 4.0F
+              - radius)
+        < 0.001F);
+}
+
+TEST_CASE(analyzer_hit_test_distinguishes_back_chart_and_empty_space) {
+    const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 6U);
+
+    CHECK(hit_test_analyzer_layout(
+              layout,
+              (layout.backButton.left + layout.backButton.right) * 0.5F,
+              (layout.backButton.top + layout.backButton.bottom) * 0.5F)
+        == AnalyzerHitTarget::Back);
+    CHECK(hit_test_analyzer_layout(
+              layout,
+              layout.chartGeometry.centerX + layout.chartGeometry.innerRadius + 4.0F,
+              layout.chartGeometry.centerY)
+        == AnalyzerHitTarget::Chart);
+    CHECK(hit_test_analyzer_layout(
+              layout,
+              layout.detailsBounds.left + 4.0F,
+              layout.detailsBounds.top + 4.0F)
+        == AnalyzerHitTarget::None);
+}

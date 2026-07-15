@@ -24,6 +24,7 @@ struct SunburstSegment {
     NodeIndex node = invalid_node;
     float startAngle = 0.0F;
     float endAngle = 0.0F;
+    std::uint64_t logicalSize = 0U;
     std::uint16_t depth = 0U;
     std::uint8_t paletteIndex = 0U;
     SunburstSegmentFlags flags = SunburstSegmentFlags::None;

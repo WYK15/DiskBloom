@@ -84,6 +84,7 @@ TEST_CASE(sunburst_layout_groups_below_threshold_children) {
         });
     CHECK(aggregate != layout.segments.end());
     CHECK(aggregate->node == root);
+    CHECK(aggregate->logicalSize == 1U);
     CHECK(near(aggregate->endAngle - aggregate->startAngle, 2.0F * pi * 0.001F));
 }
 

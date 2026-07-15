@@ -116,6 +116,7 @@ SunburstLayout build_sunburst_layout(
                 .node = child,
                 .startAngle = angle,
                 .endAngle = endAngle,
+                .logicalSize = childNode.logicalSize,
                 .depth = current.childDepth,
                 .paletteIndex = static_cast<std::uint8_t>(
                     (paletteOrdinal + current.childDepth * 3U) % palette_size),
@@ -140,6 +141,7 @@ SunburstLayout build_sunburst_layout(
                 .node = current.node,
                 .startAngle = angle,
                 .endAngle = current.endAngle,
+                .logicalSize = aggregateBytes,
                 .depth = current.childDepth,
                 .paletteIndex = static_cast<std::uint8_t>(
                     (paletteOrdinal + current.childDepth * 3U) % palette_size),

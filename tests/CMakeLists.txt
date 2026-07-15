@@ -1,6 +1,7 @@
 add_executable(
     diskbloom_tests
     appearance_settings_tests.cpp
+    analyzer_layout_tests.cpp
     disk_overview_layout_tests.cpp
     file_scanner_tests.cpp
     scan_session_tests.cpp
@@ -42,4 +43,21 @@ target_link_libraries(
 target_include_directories(diskbloom_render_smoke PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
 add_test(NAME diskbloom_render_smoke COMMAND diskbloom_render_smoke)
+
+add_executable(diskbloom_analyzer_render_smoke analyzer_render_smoke_main.cpp)
+target_link_libraries(
+    diskbloom_analyzer_render_smoke
+    PRIVATE
+        diskbloom_app
+        diskbloom_core
+        diskbloom_options
+        diskbloom_render
+)
+target_include_directories(
+    diskbloom_analyzer_render_smoke
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)
+
+add_test(NAME diskbloom_analyzer_render_smoke COMMAND diskbloom_analyzer_render_smoke)
 add_test(NAME diskbloom_app_smoke COMMAND DiskBloom --smoke-test)
