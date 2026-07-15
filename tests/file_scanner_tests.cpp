@@ -81,6 +81,7 @@ TEST_CASE(file_scanner_builds_exact_tree_and_totals) {
         });
 
     CHECK(result.completion == ScanCompletion::Completed);
+    CHECK(result.rootPath == fixture.root);
     CHECK(result.progress.files == 2U);
     CHECK(result.progress.directories == 2U);
     CHECK(result.progress.entries == 4U);

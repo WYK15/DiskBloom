@@ -24,6 +24,8 @@ endif()
 add_library(
     diskbloom_core
     STATIC
+        core/child_ranking.cpp
+        core/node_path.cpp
         core/scan_tree.cpp
         core/string_catalog.cpp
         core/sunburst_layout.cpp

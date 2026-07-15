@@ -140,10 +140,11 @@ private:
 ScanResult cancelled_result(
     ScanProgress progress,
     core::ScanTree tree,
-    ProgressPublisher& publisher) {
+    ProgressPublisher& publisher,
+    std::wstring rootPath) {
     tree.aggregate();
     publisher.publish(progress, true);
-    return {ScanCompletion::Cancelled, progress, std::move(tree)};
+    return {ScanCompletion::Cancelled, progress, std::move(tree), std::move(rootPath)};
 }
 
 } // namespace
@@ -157,7 +158,11 @@ ScanResult scan_directory(
     ProgressPublisher publisher(std::move(progressCallback));
 
     if (stopToken.stop_requested()) {
-        return cancelled_result(progress, std::move(tree), publisher);
+        return cancelled_result(
+            progress,
+            std::move(tree),
+            publisher,
+            std::wstring(rootPath));
     }
 
     const auto absolute = absolute_path(rootPath);
@@ -168,14 +173,14 @@ ScanResult scan_directory(
     if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0U) {
         progress.errors = 1U;
         publisher.publish(progress, true);
-        return {ScanCompletion::RootUnavailable, progress, std::move(tree)};
+        return {ScanCompletion::RootUnavailable, progress, std::move(tree), absolute};
     }
 
     tree.reserve(4096U, 65536U);
     const auto root = tree.add_root(display_root_name(absolute), core::ScanNodeFlags::Directory);
     if (root == core::invalid_node) {
         progress.errors = 1U;
-        return {ScanCompletion::RootUnavailable, progress, std::move(tree)};
+        return {ScanCompletion::RootUnavailable, progress, std::move(tree), absolute};
     }
 
     std::vector<DirectoryWork> pending;
@@ -184,7 +189,7 @@ ScanResult scan_directory(
 
     while (!pending.empty()) {
         if (stopToken.stop_requested()) {
-            return cancelled_result(progress, std::move(tree), publisher);
+            return cancelled_result(progress, std::move(tree), publisher, absolute);
         }
 
         auto work = std::move(pending.back());
@@ -221,7 +226,7 @@ ScanResult scan_directory(
         bool more = true;
         while (more) {
             if (stopToken.stop_requested()) {
-                return cancelled_result(progress, std::move(tree), publisher);
+                return cancelled_result(progress, std::move(tree), publisher, absolute);
             }
 
             if (!is_dot_entry(data.cFileName)) {
@@ -263,7 +268,7 @@ ScanResult scan_directory(
 
     tree.aggregate();
     publisher.publish(progress, true);
-    return {ScanCompletion::Completed, progress, std::move(tree)};
+    return {ScanCompletion::Completed, progress, std::move(tree), absolute};
 }
 
 } // namespace diskbloom::platform::windows

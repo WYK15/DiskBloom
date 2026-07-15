@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <functional>
 #include <stop_token>
+#include <string>
 #include <string_view>
 
 namespace diskbloom::platform::windows {
@@ -27,6 +28,7 @@ struct ScanResult {
     ScanCompletion completion = ScanCompletion::RootUnavailable;
     ScanProgress progress;
     core::ScanTree tree;
+    std::wstring rootPath;
 };
 
 using ProgressCallback = std::function<void(const ScanProgress&)>;
