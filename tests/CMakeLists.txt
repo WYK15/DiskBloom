@@ -2,6 +2,7 @@ add_executable(
     diskbloom_tests
     appearance_settings_tests.cpp
     analyzer_layout_tests.cpp
+    analyzer_child_list_tests.cpp
     analyzer_navigation_tests.cpp
     child_ranking_tests.cpp
     disk_overview_layout_tests.cpp

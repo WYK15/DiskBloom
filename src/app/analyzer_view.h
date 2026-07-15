@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/language.h"
+#include "core/child_ranking.h"
 #include "core/scan_tree.h"
 #include "core/sunburst_layout.h"
 #include "core/theme.h"
@@ -8,6 +9,7 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <vector>
 
 namespace diskbloom::render {
 class GraphicsDevice;
@@ -33,6 +35,35 @@ struct AnalyzerLayout {
     AnalyzerRectF detailsBounds;
     core::SunburstGeometry chartGeometry;
 };
+
+struct AnalyzerChildRowLayout {
+    AnalyzerRectF bounds;
+    AnalyzerRectF nameBounds;
+    AnalyzerRectF sizeBounds;
+    std::size_t itemIndex = 0U;
+};
+
+struct AnalyzerChildListLayout {
+    std::vector<AnalyzerChildRowLayout> rows;
+    std::size_t visibleCapacity = 0U;
+    std::size_t scrollOffset = 0U;
+};
+
+[[nodiscard]] AnalyzerChildListLayout compute_analyzer_child_list_layout(
+    const AnalyzerRectF& detailsBounds,
+    std::size_t itemCount,
+    std::size_t scrollOffset);
+
+[[nodiscard]] std::optional<std::size_t> hit_test_analyzer_child_rows(
+    const AnalyzerChildListLayout& layout,
+    float xDip,
+    float yDip) noexcept;
+
+[[nodiscard]] std::size_t next_child_scroll_offset(
+    std::size_t current,
+    std::size_t itemCount,
+    std::size_t visibleCount,
+    int deltaRows) noexcept;
 
 enum class AnalyzerHitTarget {
     None,
@@ -90,6 +121,7 @@ public:
 
     [[nodiscard]] bool pointer_moved(float xDip, float yDip);
     [[nodiscard]] bool pointer_left();
+    [[nodiscard]] bool scroll_children(int deltaRows) noexcept;
     void pointer_pressed(float xDip, float yDip);
     [[nodiscard]] std::optional<AnalyzerCommand> take_command() noexcept;
 
@@ -107,8 +139,13 @@ private:
     core::NodeIndex root_ = core::invalid_node;
     core::NodeIndex selectedNode_ = core::invalid_node;
     core::SunburstLayout sunburst_;
+    std::vector<core::RankedChild> rankedChildren_;
+    std::vector<std::uint8_t> childPaletteIndices_;
     AnalyzerLayout layout_{};
+    AnalyzerChildListLayout childListLayout_{};
     std::optional<core::SunburstHit> hoveredSegment_;
+    std::optional<std::size_t> hoveredChild_;
+    std::size_t childScrollOffset_ = 0U;
     AnalyzerHitTarget hoveredChrome_ = AnalyzerHitTarget::None;
     std::optional<AnalyzerCommand> pendingCommand_;
     std::size_t layoutRevision_ = 0U;

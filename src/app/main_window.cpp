@@ -498,6 +498,16 @@ LRESULT MainWindow::handle_message(
         return 0;
     }
 
+    case WM_MOUSEWHEEL:
+        if (navigation_.view == MainContentView::Analyzer) {
+            const auto notches = GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA;
+            if (notches != 0 && analyzer_.scroll_children(-notches)) {
+                InvalidateRect(window_, nullptr, FALSE);
+            }
+            return 0;
+        }
+        break;
+
     case WM_LBUTTONUP:
         if (navigation_.view == MainContentView::Analyzer) {
             analyzer_.pointer_pressed(

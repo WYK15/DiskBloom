@@ -1,5 +1,6 @@
 #include "app/analyzer_view.h"
 
+#include "core/child_ranking.h"
 #include "core/string_catalog.h"
 #include "render/graphics_device.h"
 
@@ -195,6 +196,63 @@ AnalyzerHitTarget hit_test_analyzer_layout(
         : AnalyzerHitTarget::None;
 }
 
+AnalyzerChildListLayout compute_analyzer_child_list_layout(
+    const AnalyzerRectF& detailsBounds,
+    const std::size_t itemCount,
+    const std::size_t scrollOffset) {
+    constexpr float listTopOffset = 128.0F;
+    constexpr float rowHeight = 32.0F;
+    constexpr float sizeWidth = 82.0F;
+    AnalyzerChildListLayout layout;
+    const auto listTop = detailsBounds.top + listTopOffset;
+    const auto availableHeight = std::max(detailsBounds.bottom - listTop, 0.0F);
+    layout.visibleCapacity = static_cast<std::size_t>(availableHeight / rowHeight);
+    layout.scrollOffset = std::min(
+        scrollOffset,
+        itemCount > layout.visibleCapacity ? itemCount - layout.visibleCapacity : 0U);
+    const auto visibleCount = std::min(
+        layout.visibleCapacity,
+        itemCount - std::min(itemCount, layout.scrollOffset));
+    layout.rows.reserve(visibleCount);
+    const auto sizeLeft = std::max(detailsBounds.left + 80.0F, detailsBounds.right - sizeWidth);
+    for (std::size_t index = 0U; index < visibleCount; ++index) {
+        const auto top = listTop + static_cast<float>(index) * rowHeight;
+        layout.rows.push_back({
+            .bounds = {detailsBounds.left, top, detailsBounds.right, top + rowHeight},
+            .nameBounds = {detailsBounds.left + 22.0F, top, sizeLeft - 8.0F, top + rowHeight},
+            .sizeBounds = {sizeLeft, top, detailsBounds.right, top + rowHeight},
+            .itemIndex = layout.scrollOffset + index,
+        });
+    }
+    return layout;
+}
+
+std::optional<std::size_t> hit_test_analyzer_child_rows(
+    const AnalyzerChildListLayout& layout,
+    const float xDip,
+    const float yDip) noexcept {
+    for (const auto& row : layout.rows) {
+        if (contains(row.bounds, xDip, yDip)) {
+            return row.itemIndex;
+        }
+    }
+    return std::nullopt;
+}
+
+std::size_t next_child_scroll_offset(
+    const std::size_t current,
+    const std::size_t itemCount,
+    const std::size_t visibleCount,
+    const int deltaRows) noexcept {
+    const auto maximum = itemCount > visibleCount ? itemCount - visibleCount : 0U;
+    const auto next = static_cast<long long>(std::min(current, maximum))
+        + static_cast<long long>(deltaRows);
+    return static_cast<std::size_t>(std::clamp<long long>(
+        next,
+        0LL,
+        static_cast<long long>(maximum)));
+}
+
 struct AnalyzerView::Resources {
     ID2D1DeviceContext* context = nullptr;
     core::Rgba themeKey{};
@@ -211,6 +269,9 @@ struct AnalyzerView::Resources {
     Microsoft::WRL::ComPtr<IDWriteTextFormat> detailHeadingFormat;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> detailFormat;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> centerFormat;
+    Microsoft::WRL::ComPtr<IDWriteTextFormat> rowNameFormat;
+    Microsoft::WRL::ComPtr<IDWriteTextFormat> rowSizeFormat;
+    Microsoft::WRL::ComPtr<IDWriteInlineObject> rowEllipsis;
     std::array<Microsoft::WRL::ComPtr<ID2D1PathGeometry>, palette_size> batches;
     std::size_t geometryRevision = 0U;
     core::SunburstGeometry geometry{};
@@ -225,6 +286,7 @@ void AnalyzerView::set_tree(const core::ScanTree* tree, const core::NodeIndex ro
     root_ = root;
     selectedNode_ = root;
     hoveredSegment_.reset();
+    hoveredChild_.reset();
     pendingCommand_.reset();
     rebuild_layout();
 }
@@ -237,6 +299,7 @@ bool AnalyzerView::set_root(const core::NodeIndex root) {
     root_ = root;
     selectedNode_ = root;
     hoveredSegment_.reset();
+    hoveredChild_.reset();
     rebuild_layout();
     return true;
 }
@@ -255,6 +318,23 @@ void AnalyzerView::rebuild_layout() {
     sunburst_ = tree_ == nullptr
         ? core::SunburstLayout{}
         : core::build_sunburst_layout(*tree_, root_, {});
+    rankedChildren_ = tree_ == nullptr
+        ? std::vector<core::RankedChild>{}
+        : core::rank_children(*tree_, root_, 24U);
+    childPaletteIndices_.assign(rankedChildren_.size(), 0U);
+    for (std::size_t childIndex = 0U; childIndex < rankedChildren_.size(); ++childIndex) {
+        const auto segment = std::find_if(
+            sunburst_.segments.begin(),
+            sunburst_.segments.end(),
+            [&](const core::SunburstSegment& value) {
+                return value.depth == 0U && value.node == rankedChildren_[childIndex].node;
+            });
+        childPaletteIndices_[childIndex] = segment == sunburst_.segments.end()
+            ? static_cast<std::uint8_t>(childIndex % palette_size)
+            : segment->paletteIndex;
+    }
+    childScrollOffset_ = 0U;
+    childListLayout_ = {};
     ++layoutRevision_;
     if (resources_ != nullptr) {
         resources_->geometryValid = false;
@@ -313,7 +393,9 @@ bool AnalyzerView::ensure_resources(
     if (!createFormat(24.0F, resources->titleFormat)
         || !createFormat(27.0F, resources->detailHeadingFormat)
         || !createFormat(18.0F, resources->detailFormat)
-        || !createFormat(18.0F, resources->centerFormat)) {
+        || !createFormat(18.0F, resources->centerFormat)
+        || !createFormat(16.0F, resources->rowNameFormat)
+        || !createFormat(16.0F, resources->rowSizeFormat)) {
         return false;
     }
     resources->titleFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
@@ -323,6 +405,24 @@ bool AnalyzerView::ensure_resources(
     resources->centerFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
     resources->centerFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
     resources->centerFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+    resources->rowNameFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+    resources->rowNameFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+    const DWRITE_TRIMMING rowTrimming{
+        .granularity = DWRITE_TRIMMING_GRANULARITY_CHARACTER,
+        .delimiter = 0U,
+        .delimiterCount = 0U,
+    };
+    if (FAILED(writeFactory->CreateEllipsisTrimmingSign(
+            resources->rowNameFormat.Get(),
+            &resources->rowEllipsis))
+        || FAILED(resources->rowNameFormat->SetTrimming(
+            &rowTrimming,
+            resources->rowEllipsis.Get()))) {
+        return false;
+    }
+    resources->rowSizeFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+    resources->rowSizeFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+    resources->rowSizeFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
     resources_ = std::move(resources);
     return true;
 }
@@ -383,6 +483,11 @@ bool AnalyzerView::draw(
         return false;
     }
     layout_ = compute_analyzer_layout(widthDip, heightDip, sunburst_.depthRanges.size());
+    childListLayout_ = compute_analyzer_child_list_layout(
+        layout_.detailsBounds,
+        rankedChildren_.size(),
+        childScrollOffset_);
+    childScrollOffset_ = childListLayout_.scrollOffset;
     if (!ensure_geometry()) {
         return false;
     }
@@ -497,24 +602,11 @@ bool AnalyzerView::draw(
         centerBounds,
         resources_->primary.Get());
 
-    core::NodeIndex detailNode = selectedNode_ < tree_->nodes().size() ? selectedNode_ : root_;
-    std::uint64_t detailBytes = tree_->node(detailNode).logicalSize;
-    std::wstring detailName(tree_->name(detailNode));
-    std::uint64_t itemCount = tree_->node(detailNode).fileCount
+    const auto detailNode = root_;
+    const auto detailBytes = tree_->node(detailNode).logicalSize;
+    const std::wstring detailName(tree_->name(detailNode));
+    const auto itemCount = tree_->node(detailNode).fileCount
         + tree_->node(detailNode).directoryCount;
-    if (hoveredSegment_.has_value()) {
-        const auto& segment = sunburst_.segments[hoveredSegment_->segmentIndex];
-        detailNode = segment.node;
-        detailBytes = segment.logicalSize;
-        if (segment.flags == core::SunburstSegmentFlags::Aggregate) {
-            detailName = core::get_string(language, core::StringId::OtherItems);
-            itemCount = 0U;
-        } else {
-            detailName = tree_->name(detailNode);
-            itemCount = tree_->node(detailNode).fileCount
-                + tree_->node(detailNode).directoryCount;
-        }
-    }
 
     const AnalyzerRectF nameBounds{
         layout_.detailsBounds.left,
@@ -547,11 +639,40 @@ bool AnalyzerView::draw(
         countText.append(core::get_string(language, core::StringId::Items));
         drawText(countText, resources_->detailFormat.Get(), countBounds, resources_->secondary.Get());
     }
+
+    for (const auto& row : childListLayout_.rows) {
+        if (row.itemIndex >= rankedChildren_.size()) {
+            continue;
+        }
+        const auto node = rankedChildren_[row.itemIndex].node;
+        if ((hoveredChild_.has_value() && *hoveredChild_ == row.itemIndex)
+            || selectedNode_ == node) {
+            context->FillRectangle(to_d2d_rect(row.bounds), resources_->hover.Get());
+        }
+        const auto dotCenter = D2D1::Point2F(
+            row.bounds.left + 9.0F,
+            (row.bounds.top + row.bounds.bottom) * 0.5F);
+        context->FillEllipse(
+            D2D1::Ellipse(dotCenter, 4.5F, 4.5F),
+            resources_->palette[childPaletteIndices_[row.itemIndex]].Get());
+        drawText(
+            tree_->name(node),
+            resources_->rowNameFormat.Get(),
+            row.nameBounds,
+            resources_->primary.Get());
+        const auto childSize = format_bytes(rankedChildren_[row.itemIndex].logicalSize);
+        drawText(
+            childSize,
+            resources_->rowSizeFormat.Get(),
+            row.sizeBounds,
+            resources_->secondary.Get());
+    }
     return true;
 }
 
 bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
     const auto target = hit_test_analyzer_layout(layout_, xDip, yDip);
+    const auto nextChild = hit_test_analyzer_child_rows(childListLayout_, xDip, yDip);
     const auto nextChrome = target == AnalyzerHitTarget::Back
             || target == AnalyzerHitTarget::MinimizeWindow
             || target == AnalyzerHitTarget::MaximizeWindow
@@ -559,7 +680,7 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
         ? target
         : AnalyzerHitTarget::None;
     std::optional<core::SunburstHit> nextSegment;
-    if (target == AnalyzerHitTarget::Chart) {
+    if (!nextChild.has_value() && target == AnalyzerHitTarget::Chart) {
         nextSegment = core::hit_test_sunburst(
             sunburst_,
             layout_.chartGeometry,
@@ -569,24 +690,55 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
     const auto sameSegment = hoveredSegment_.has_value() == nextSegment.has_value()
         && (!hoveredSegment_.has_value()
             || hoveredSegment_->segmentIndex == nextSegment->segmentIndex);
-    if (hoveredChrome_ == nextChrome && sameSegment) {
+    if (hoveredChrome_ == nextChrome && sameSegment && hoveredChild_ == nextChild) {
         return false;
     }
     hoveredChrome_ = nextChrome;
     hoveredSegment_ = nextSegment;
+    hoveredChild_ = nextChild;
     return true;
 }
 
 bool AnalyzerView::pointer_left() {
-    if (hoveredChrome_ == AnalyzerHitTarget::None && !hoveredSegment_.has_value()) {
+    if (hoveredChrome_ == AnalyzerHitTarget::None
+        && !hoveredSegment_.has_value()
+        && !hoveredChild_.has_value()) {
         return false;
     }
     hoveredChrome_ = AnalyzerHitTarget::None;
     hoveredSegment_.reset();
+    hoveredChild_.reset();
+    return true;
+}
+
+bool AnalyzerView::scroll_children(const int deltaRows) noexcept {
+    const auto next = next_child_scroll_offset(
+        childScrollOffset_,
+        rankedChildren_.size(),
+        childListLayout_.visibleCapacity,
+        deltaRows);
+    if (next == childScrollOffset_) {
+        return false;
+    }
+    childScrollOffset_ = next;
+    hoveredChild_.reset();
     return true;
 }
 
 void AnalyzerView::pointer_pressed(const float xDip, const float yDip) {
+    if (const auto childIndex = hit_test_analyzer_child_rows(
+            childListLayout_,
+            xDip,
+            yDip);
+        childIndex.has_value() && *childIndex < rankedChildren_.size()) {
+        const auto nodeIndex = rankedChildren_[*childIndex].node;
+        pendingCommand_ = core::has_flag(
+                              tree_->node(nodeIndex).flags,
+                              core::ScanNodeFlags::Directory)
+            ? AnalyzerCommand{AnalyzerCommandKind::NavigateToNode, nodeIndex}
+            : AnalyzerCommand{AnalyzerCommandKind::SelectNode, nodeIndex};
+        return;
+    }
     const auto target = hit_test_analyzer_layout(layout_, xDip, yDip);
     if (target == AnalyzerHitTarget::Back) {
         const auto parent = tree_ != nullptr && root_ < tree_->nodes().size()
