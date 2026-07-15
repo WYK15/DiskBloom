@@ -63,3 +63,26 @@ target_link_libraries(
         dxgi
 )
 target_include_directories(diskbloom_render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_library(
+    diskbloom_app
+    STATIC
+        app/appearance_settings.cpp
+        app/disk_overview.cpp
+        app/main_window.cpp
+)
+target_link_libraries(
+    diskbloom_app
+    PUBLIC
+        diskbloom_core
+        diskbloom_options
+        diskbloom_platform_windows
+        diskbloom_render
+    PRIVATE
+        dwmapi
+        shell32
+)
+target_include_directories(diskbloom_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_executable(DiskBloom WIN32 app/win_main.cpp)
+target_link_libraries(DiskBloom PRIVATE diskbloom_app diskbloom_options shell32)
