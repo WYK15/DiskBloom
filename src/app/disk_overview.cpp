@@ -175,6 +175,7 @@ std::optional<OverviewCommand> hit_test_overview(
 struct DiskOverview::Resources {
     ID2D1DeviceContext* context = nullptr;
     core::Rgba themeKey{};
+    core::Language language = core::Language::English;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> titleBar;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> row;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> alternateRow;
@@ -222,13 +223,15 @@ bool DiskOverview::ensure_resources(
 
     if (resources_ != nullptr
         && resources_->context == context
-        && same_color(resources_->themeKey, theme.window)) {
+        && same_color(resources_->themeKey, theme.window)
+        && resources_->language == language) {
         return true;
     }
 
     auto resources = std::make_unique<Resources>();
     resources->context = context;
     resources->themeKey = theme.window;
+    resources->language = language;
 
     const auto make_brush = [&](const core::Rgba color, auto& brush) {
         return SUCCEEDED(context->CreateSolidColorBrush(to_d2d_color(color), &brush));

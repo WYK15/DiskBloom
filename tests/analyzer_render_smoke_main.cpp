@@ -42,19 +42,23 @@ int main() {
 
     diskbloom::app::AnalyzerView analyzer;
     analyzer.set_tree(&tree, root);
-    const auto theme = diskbloom::core::make_theme(true);
-    if (!graphics.begin_draw(theme.window)
-        || !analyzer.draw(
-            graphics,
-            theme,
-            diskbloom::core::Language::English,
-            800.0F,
-            600.0F)) {
-        DestroyWindow(window);
-        return 3;
+    constexpr bool theme_modes[]{false, true};
+    constexpr diskbloom::core::Language languages[]{
+        diskbloom::core::Language::English,
+        diskbloom::core::Language::SimplifiedChinese,
+    };
+    for (const auto dark : theme_modes) {
+        const auto theme = diskbloom::core::make_theme(dark);
+        for (const auto language : languages) {
+            if (!graphics.begin_draw(theme.window)
+                || !analyzer.draw(graphics, theme, language, 800.0F, 600.0F)
+                || FAILED(graphics.end_draw())) {
+                DestroyWindow(window);
+                return 3;
+            }
+        }
     }
 
-    const auto result = graphics.end_draw();
     DestroyWindow(window);
-    return SUCCEEDED(result) ? 0 : 4;
+    return 0;
 }

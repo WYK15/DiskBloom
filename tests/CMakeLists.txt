@@ -68,4 +68,15 @@ target_include_directories(
 )
 
 add_test(NAME diskbloom_analyzer_render_smoke COMMAND diskbloom_analyzer_render_smoke)
-add_test(NAME diskbloom_app_smoke COMMAND DiskBloom --smoke-test)
+add_test(
+    NAME diskbloom_app_smoke_dark_en
+    COMMAND DiskBloom --smoke-test --theme=dark --language=en-US)
+add_test(
+    NAME diskbloom_app_smoke_dark_zh
+    COMMAND DiskBloom --smoke-test --theme=dark --language=zh-CN)
+add_test(
+    NAME diskbloom_app_smoke_light_en
+    COMMAND DiskBloom --smoke-test --theme=light --language=en-US)
+add_test(
+    NAME diskbloom_app_smoke_light_zh
+    COMMAND DiskBloom --smoke-test --theme=light --language=zh-CN)

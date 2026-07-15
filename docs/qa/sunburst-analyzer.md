@@ -55,6 +55,12 @@ The layout result is below a 16.7 ms CPU frame budget on this fixture. This is
 not a claim that full composition, input handling, and presentation meet 60 Hz;
 GPU frame instrumentation is still required before that release claim.
 
+The 0.1.0 release verification precomputed each parent's byte-to-angle scale in
+the two child passes. Three final samples measured 5.97, 6.18, and 6.10 ms per
+layout rebuild (6.10 ms median), with the same 1,465-segment maximum. Cached
+hit tests measured 105.83, 114.16, and 106.25 ms per million (106.25 ms
+median). Both medians remain inside the original same-host gates.
+
 ## Correctness And Visual Checks
 
 - Debug and Release: 4/4 CTest targets passed, including a real hidden-window
@@ -84,9 +90,14 @@ Remaining differences, not accepted as complete parity yet:
 
 - The reference has a full clickable breadcrumb chain; DiskBloom currently
   shows the current root plus a back control.
-- The reference has a ranked, scrollable immediate-child list; DiskBloom
-  currently shows only the active item summary.
-- The reference has a bottom deletion collection and review action; DiskBloom
-  has not implemented collection or deletion yet.
 - The reference uses animated fan-shaped transitions. DiskBloom currently
   switches cached layouts without the matching transition animation.
+
+Added after the original baseline:
+
+- A bounded, ranked, scrollable immediate-child list with stable name and size
+  columns.
+- Open/preview and Explorer reveal commands for the selected node.
+- A bottom deletion collection with size summary, absolute-path confirmation,
+  asynchronous recycle-only execution, and automatic rescan after success.
+- Selected-folder scanning through the native Windows folder picker.

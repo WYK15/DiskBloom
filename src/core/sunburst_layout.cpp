@@ -67,6 +67,8 @@ SunburstLayout build_sunburst_layout(
         }
 
         const auto parentSweep = current.endAngle - current.startAngle;
+        const auto sweepScale = static_cast<double>(parentSweep)
+            / static_cast<double>(parent.logicalSize);
         std::size_t visibleCount = 0U;
         std::uint64_t belowThresholdBytes = 0U;
         for (auto child = parent.firstChild;
@@ -76,9 +78,8 @@ SunburstLayout build_sunburst_layout(
             if (childBytes == 0U) {
                 continue;
             }
-            const auto sweep = parentSweep
-                * static_cast<float>(static_cast<double>(childBytes)
-                    / static_cast<double>(parent.logicalSize));
+            const auto sweep = static_cast<float>(
+                static_cast<double>(childBytes) * sweepScale);
             if (sweep >= minSweep) {
                 ++visibleCount;
             } else {
@@ -104,9 +105,8 @@ SunburstLayout build_sunburst_layout(
             if (childNode.logicalSize == 0U) {
                 continue;
             }
-            const auto sweep = parentSweep
-                * static_cast<float>(static_cast<double>(childNode.logicalSize)
-                    / static_cast<double>(parent.logicalSize));
+            const auto sweep = static_cast<float>(
+                static_cast<double>(childNode.logicalSize) * sweepScale);
             if (sweep < minSweep || individualCount >= individualLimit) {
                 aggregateBytes += childNode.logicalSize;
                 continue;

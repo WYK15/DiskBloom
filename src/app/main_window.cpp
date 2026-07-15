@@ -7,6 +7,7 @@
 #include "platform/windows/recycle_bin.h"
 #include "platform/windows/system_theme.h"
 #include "platform/windows/volume_service.h"
+#include "resources/resource.h"
 
 #include <Windowsx.h>
 #include <dwmapi.h>
@@ -84,12 +85,12 @@ bool MainWindow::create(
         .cbClsExtra = 0,
         .cbWndExtra = 0,
         .hInstance = instance,
-        .hIcon = LoadIconW(nullptr, IDI_APPLICATION),
+        .hIcon = LoadIconW(instance, MAKEINTRESOURCEW(IDI_DISKBLOOM)),
         .hCursor = LoadCursorW(nullptr, IDC_ARROW),
         .hbrBackground = nullptr,
         .lpszMenuName = nullptr,
         .lpszClassName = window_class_name,
-        .hIconSm = LoadIconW(nullptr, IDI_APPLICATION),
+        .hIconSm = LoadIconW(instance, MAKEINTRESOURCEW(IDI_DISKBLOOM)),
     };
     if (RegisterClassExW(&window_class) == 0U
         && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
