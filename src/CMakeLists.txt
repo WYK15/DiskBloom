@@ -38,6 +38,7 @@ add_library(
     diskbloom_platform_windows
     STATIC
         platform/windows/file_scanner.cpp
+        platform/windows/recycle_bin.cpp
         platform/windows/shell_actions.cpp
         platform/windows/system_theme.cpp
         platform/windows/volume_service.cpp
@@ -51,6 +52,7 @@ target_link_libraries(
         advapi32
         ole32
         shell32
+        shlwapi
 )
 target_include_directories(diskbloom_platform_windows PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -92,6 +94,7 @@ add_library(
         app/analyzer_navigation.cpp
         app/analyzer_view.cpp
         app/appearance_settings.cpp
+        app/deletion_review.cpp
         app/disk_overview.cpp
         app/main_window.cpp
         app/scan_ui_state.cpp
