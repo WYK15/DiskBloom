@@ -54,6 +54,8 @@ bool apply_analyzer_command(
     case AnalyzerCommandKind::MinimizeWindow:
     case AnalyzerCommandKind::ToggleMaximizeWindow:
     case AnalyzerCommandKind::CloseWindow:
+    case AnalyzerCommandKind::PreviewNode:
+    case AnalyzerCommandKind::RevealNode:
         return false;
     }
     return false;

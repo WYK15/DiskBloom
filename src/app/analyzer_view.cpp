@@ -131,15 +131,17 @@ AnalyzerLayout compute_analyzer_layout(
     const float heightDip,
     const std::size_t depthCount) noexcept {
     constexpr float headerHeight = 64.0F;
+    constexpr float actionBarHeight = 56.0F;
     const auto width = std::max(widthDip, 0.0F);
     const auto height = std::max(heightDip, headerHeight + 120.0F);
     const auto detailsLeft = std::clamp(width * 0.68F, 544.0F, width - 180.0F);
     const auto chartAreaRight = std::max(120.0F, detailsLeft - 24.0F);
     const auto centerX = chartAreaRight * 0.5F;
-    const auto centerY = headerHeight + (height - headerHeight) * 0.5F;
+    const auto actionTop = height - actionBarHeight;
+    const auto centerY = headerHeight + (actionTop - headerHeight) * 0.5F;
     const auto radius = std::max(
         20.0F,
-        std::min((chartAreaRight - 48.0F) * 0.5F, (height - headerHeight - 32.0F) * 0.5F));
+        std::min((chartAreaRight - 48.0F) * 0.5F, (actionTop - headerHeight - 24.0F) * 0.5F));
     const auto bandCount = static_cast<float>(std::max<std::size_t>(depthCount, 1U));
     const auto innerRadius = radius * 0.22F;
 
@@ -160,8 +162,11 @@ AnalyzerLayout compute_analyzer_layout(
             detailsLeft,
             headerHeight + 32.0F,
             std::max(detailsLeft, width - 28.0F),
-            height - 32.0F,
+            actionTop - 16.0F,
         },
+        .actionBar = {0.0F, actionTop, width, height},
+        .previewButton = {width - 332.0F, actionTop + 10.0F, width - 220.0F, height - 10.0F},
+        .revealButton = {width - 208.0F, actionTop + 10.0F, width - 28.0F, height - 10.0F},
         .chartGeometry = {
             .centerX = centerX,
             .centerY = centerY,
@@ -186,6 +191,12 @@ AnalyzerHitTarget hit_test_analyzer_layout(
     }
     if (contains(layout.closeButton, xDip, yDip)) {
         return AnalyzerHitTarget::CloseWindow;
+    }
+    if (contains(layout.previewButton, xDip, yDip)) {
+        return AnalyzerHitTarget::Preview;
+    }
+    if (contains(layout.revealButton, xDip, yDip)) {
+        return AnalyzerHitTarget::Reveal;
     }
     const auto dx = xDip - layout.chartGeometry.centerX;
     const auto dy = yDip - layout.chartGeometry.centerY;
@@ -271,6 +282,7 @@ struct AnalyzerView::Resources {
     Microsoft::WRL::ComPtr<IDWriteTextFormat> centerFormat;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> rowNameFormat;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> rowSizeFormat;
+    Microsoft::WRL::ComPtr<IDWriteTextFormat> buttonFormat;
     Microsoft::WRL::ComPtr<IDWriteInlineObject> rowEllipsis;
     std::array<Microsoft::WRL::ComPtr<ID2D1PathGeometry>, palette_size> batches;
     std::size_t geometryRevision = 0U;
@@ -395,7 +407,8 @@ bool AnalyzerView::ensure_resources(
         || !createFormat(18.0F, resources->detailFormat)
         || !createFormat(18.0F, resources->centerFormat)
         || !createFormat(16.0F, resources->rowNameFormat)
-        || !createFormat(16.0F, resources->rowSizeFormat)) {
+        || !createFormat(16.0F, resources->rowSizeFormat)
+        || !createFormat(16.0F, resources->buttonFormat)) {
         return false;
     }
     resources->titleFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
@@ -423,6 +436,9 @@ bool AnalyzerView::ensure_resources(
     resources->rowSizeFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
     resources->rowSizeFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
     resources->rowSizeFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+    resources->buttonFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+    resources->buttonFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+    resources->buttonFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
     resources_ = std::move(resources);
     return true;
 }
@@ -494,6 +510,7 @@ bool AnalyzerView::draw(
 
     auto* context = resources_->context;
     context->FillRectangle(to_d2d_rect(layout_.header), resources_->header.Get());
+    context->FillRectangle(to_d2d_rect(layout_.actionBar), resources_->header.Get());
     if (hoveredChrome_ == AnalyzerHitTarget::Back) {
         context->FillRoundedRectangle(
             D2D1::RoundedRect(to_d2d_rect(layout_.backButton), 5.0F, 5.0F),
@@ -571,6 +588,45 @@ bool AnalyzerView::draw(
         resources_->titleFormat.Get(),
         layout_.titleBounds,
         resources_->primary.Get());
+
+    const auto drawActionButton = [&](
+                                      const AnalyzerRectF& bounds,
+                                      const AnalyzerHitTarget target,
+                                      const core::StringId label) {
+        context->FillRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(bounds), 5.0F, 5.0F),
+            hoveredChrome_ == target ? resources_->hover.Get() : resources_->surface.Get());
+        context->DrawRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(bounds), 5.0F, 5.0F),
+            resources_->border.Get(),
+            1.0F);
+        drawText(
+            core::get_string(language, label),
+            resources_->buttonFormat.Get(),
+            bounds,
+            resources_->primary.Get());
+    };
+    drawActionButton(
+        layout_.previewButton,
+        AnalyzerHitTarget::Preview,
+        core::StringId::Open);
+    drawActionButton(
+        layout_.revealButton,
+        AnalyzerHitTarget::Reveal,
+        core::StringId::ShowInExplorer);
+    if (selectedNode_ < tree_->nodes().size()) {
+        const AnalyzerRectF selectedBounds{
+            28.0F,
+            layout_.actionBar.top,
+            std::max(28.0F, layout_.previewButton.left - 24.0F),
+            layout_.actionBar.bottom,
+        };
+        drawText(
+            tree_->name(selectedNode_),
+            resources_->detailFormat.Get(),
+            selectedBounds,
+            resources_->secondary.Get());
+    }
 
     for (std::size_t index = 0U; index < palette_size; ++index) {
         context->FillGeometry(resources_->batches[index].Get(), resources_->palette[index].Get());
@@ -677,6 +733,8 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
             || target == AnalyzerHitTarget::MinimizeWindow
             || target == AnalyzerHitTarget::MaximizeWindow
             || target == AnalyzerHitTarget::CloseWindow
+            || target == AnalyzerHitTarget::Preview
+            || target == AnalyzerHitTarget::Reveal
         ? target
         : AnalyzerHitTarget::None;
     std::optional<core::SunburstHit> nextSegment;
@@ -759,6 +817,14 @@ void AnalyzerView::pointer_pressed(const float xDip, const float yDip) {
     }
     if (target == AnalyzerHitTarget::CloseWindow) {
         pendingCommand_ = {AnalyzerCommandKind::CloseWindow, core::invalid_node};
+        return;
+    }
+    if (target == AnalyzerHitTarget::Preview) {
+        pendingCommand_ = {AnalyzerCommandKind::PreviewNode, selectedNode_};
+        return;
+    }
+    if (target == AnalyzerHitTarget::Reveal) {
+        pendingCommand_ = {AnalyzerCommandKind::RevealNode, selectedNode_};
         return;
     }
     if (target != AnalyzerHitTarget::Chart || tree_ == nullptr) {

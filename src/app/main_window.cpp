@@ -1,6 +1,8 @@
 #include "app/main_window.h"
 
 #include "core/string_catalog.h"
+#include "core/node_path.h"
+#include "platform/windows/shell_actions.h"
 #include "platform/windows/system_theme.h"
 #include "platform/windows/volume_service.h"
 
@@ -136,6 +138,29 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
     case AnalyzerCommandKind::CloseWindow:
         DestroyWindow(window_);
         return;
+    case AnalyzerCommandKind::PreviewNode:
+    case AnalyzerCommandKind::RevealNode: {
+        if (!completedScan_.has_value()) {
+            return;
+        }
+        const auto path = core::build_node_path(
+            completedScan_->tree,
+            command.node,
+            completedScan_->rootPath);
+        const auto result = !path.has_value()
+            ? platform::windows::ShellActionResult::InvalidPath
+            : command.kind == AnalyzerCommandKind::PreviewNode
+                ? platform::windows::open_with_shell(*path)
+                : platform::windows::reveal_in_explorer(*path);
+        if (result != platform::windows::ShellActionResult::Succeeded) {
+            MessageBoxW(
+                window_,
+                core::get_string(appearance_.language, core::StringId::ActionFailed).data(),
+                core::get_string(appearance_.language, core::StringId::AppTitle).data(),
+                MB_OK | MB_ICONERROR);
+        }
+        return;
+    }
     case AnalyzerCommandKind::ReturnToOverview:
     case AnalyzerCommandKind::NavigateToNode:
     case AnalyzerCommandKind::NavigateToParent:

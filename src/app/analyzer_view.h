@@ -33,6 +33,9 @@ struct AnalyzerLayout {
     AnalyzerRectF titleBounds;
     AnalyzerRectF chartBounds;
     AnalyzerRectF detailsBounds;
+    AnalyzerRectF actionBar;
+    AnalyzerRectF previewButton;
+    AnalyzerRectF revealButton;
     core::SunburstGeometry chartGeometry;
 };
 
@@ -72,6 +75,8 @@ enum class AnalyzerHitTarget {
     MinimizeWindow,
     MaximizeWindow,
     CloseWindow,
+    Preview,
+    Reveal,
 };
 
 [[nodiscard]] AnalyzerLayout compute_analyzer_layout(
@@ -92,6 +97,8 @@ enum class AnalyzerCommandKind {
     MinimizeWindow,
     ToggleMaximizeWindow,
     CloseWindow,
+    PreviewNode,
+    RevealNode,
 };
 
 struct AnalyzerCommand {

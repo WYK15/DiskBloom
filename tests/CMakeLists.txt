@@ -11,6 +11,7 @@ add_executable(
     scan_session_tests.cpp
     scan_tree_tests.cpp
     scan_ui_state_tests.cpp
+    shell_actions_tests.cpp
     string_catalog_tests.cpp
     sunburst_layout_tests.cpp
     theme_tests.cpp
