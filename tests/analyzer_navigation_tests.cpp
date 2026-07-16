@@ -37,6 +37,7 @@ TEST_CASE(analyzer_navigation_opens_completed_tree_at_root) {
     CHECK(state.view == MainContentView::Analyzer);
     CHECK(state.root == fixture.root);
     CHECK(state.selected == fixture.root);
+    CHECK(state.history.can_back());
 }
 
 TEST_CASE(analyzer_navigation_drills_into_directory) {
@@ -94,4 +95,123 @@ TEST_CASE(analyzer_navigation_rejects_file_as_chart_root) {
         fixture.tree,
         AnalyzerCommand{AnalyzerCommandKind::NavigateToNode, fixture.file}));
     CHECK(state.root == fixture.root);
+}
+
+TEST_CASE(analyzer_navigation_moves_back_and_forward_across_overview_and_directories) {
+    NavigationFixture fixture;
+    AnalyzerNavigationState state;
+    (void)open_analyzer(state, fixture.tree, fixture.root);
+    CHECK(apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateBreadcrumb, fixture.folder}));
+
+    CHECK(apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateBack, diskbloom::core::invalid_node}));
+    CHECK(state.view == MainContentView::Analyzer);
+    CHECK(state.root == fixture.root);
+
+    CHECK(apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateBack, diskbloom::core::invalid_node}));
+    CHECK(state.view == MainContentView::Overview);
+
+    CHECK(apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateForward, diskbloom::core::invalid_node}));
+    CHECK(state.view == MainContentView::Analyzer);
+    CHECK(state.root == fixture.root);
+}
+
+TEST_CASE(analyzer_navigation_branch_clears_forward_history) {
+    NavigationFixture fixture;
+    const auto sibling = fixture.tree.add_child(
+        fixture.root,
+        L"sibling",
+        0U,
+        ScanNodeFlags::Directory);
+    AnalyzerNavigationState state;
+    (void)open_analyzer(state, fixture.tree, fixture.root);
+    (void)apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateToNode, fixture.folder});
+    (void)apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateBack, diskbloom::core::invalid_node});
+
+    CHECK(apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateBreadcrumb, sibling}));
+    CHECK(!state.history.can_forward());
+}
+
+TEST_CASE(analyzer_navigation_skips_stale_history_nodes) {
+    NavigationFixture fixture;
+    AnalyzerNavigationState state;
+    (void)open_analyzer(state, fixture.tree, fixture.root);
+    state.history.reset({MainContentView::Analyzer, fixture.root});
+    (void)state.history.record({MainContentView::Analyzer, 99U});
+    (void)state.history.record({MainContentView::Analyzer, fixture.folder});
+    state.root = fixture.folder;
+    state.selected = fixture.folder;
+
+    CHECK(apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateBack, diskbloom::core::invalid_node}));
+    CHECK(state.root == fixture.root);
+    CHECK(apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateForward, diskbloom::core::invalid_node}));
+    CHECK(state.root == fixture.folder);
+}
+
+TEST_CASE(analyzer_navigation_rejects_invalid_breadcrumb_and_overflow_commands) {
+    NavigationFixture fixture;
+    AnalyzerNavigationState state;
+    (void)open_analyzer(state, fixture.tree, fixture.root);
+    const auto historyCanBack = state.history.can_back();
+
+    CHECK(!apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateBreadcrumb, fixture.file}));
+    CHECK(!apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateBreadcrumb, diskbloom::core::invalid_node}));
+    CHECK(!apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::OpenBreadcrumbOverflow, diskbloom::core::invalid_node}));
+    CHECK(state.root == fixture.root);
+    CHECK(state.history.can_back() == historyCanBack);
+}
+
+TEST_CASE(analyzer_navigation_new_scan_replaces_old_history) {
+    NavigationFixture first;
+    AnalyzerNavigationState state;
+    (void)open_analyzer(state, first.tree, first.root);
+    (void)apply_analyzer_command(
+        state,
+        first.tree,
+        {AnalyzerCommandKind::NavigateToNode, first.folder});
+
+    ScanTree replacement;
+    const auto replacementRoot = replacement.add_root(L"replacement", ScanNodeFlags::Directory);
+    CHECK(open_analyzer(state, replacement, replacementRoot));
+    CHECK(apply_analyzer_command(
+        state,
+        replacement,
+        {AnalyzerCommandKind::NavigateBack, diskbloom::core::invalid_node}));
+    CHECK(state.view == MainContentView::Overview);
+    CHECK(!state.history.can_back());
 }

@@ -91,6 +91,10 @@ enum class AnalyzerHitTarget {
 
 enum class AnalyzerCommandKind {
     ReturnToOverview,
+    NavigateBack,
+    NavigateForward,
+    NavigateBreadcrumb,
+    OpenBreadcrumbOverflow,
     NavigateToNode,
     NavigateToParent,
     SelectNode,

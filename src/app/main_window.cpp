@@ -233,10 +233,15 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
         confirm_review_deletion();
         return;
     case AnalyzerCommandKind::ReturnToOverview:
+    case AnalyzerCommandKind::NavigateBack:
+    case AnalyzerCommandKind::NavigateForward:
+    case AnalyzerCommandKind::NavigateBreadcrumb:
     case AnalyzerCommandKind::NavigateToNode:
     case AnalyzerCommandKind::NavigateToParent:
     case AnalyzerCommandKind::SelectNode:
         break;
+    case AnalyzerCommandKind::OpenBreadcrumbOverflow:
+        return;
     }
     if (!completedScan_.has_value()) {
         return;

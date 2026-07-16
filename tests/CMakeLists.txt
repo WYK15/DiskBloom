@@ -5,6 +5,7 @@ add_executable(
     analyzer_input_lifecycle_tests.cpp
     analyzer_layout_tests.cpp
     analyzer_child_list_tests.cpp
+    analyzer_history_tests.cpp
     analyzer_navigation_tests.cpp
     child_ranking_tests.cpp
     deletion_review_tests.cpp
