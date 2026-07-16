@@ -1245,17 +1245,14 @@ bool AnalyzerView::draw(
             resources_->buttonFormat.Get(),
             reviewLayout_.summary,
             resources_->secondary.Get());
-    } else if (selectedNode_ < tree_->nodes().size()) {
-        const AnalyzerRectF selectedBounds{
-            28.0F,
-            layout_.actionBar.top,
-            std::max(28.0F, layout_.reviewButton.left - 12.0F),
-            layout_.actionBar.bottom,
-        };
+    } else {
+        auto hintBounds = reviewLayout_.summary;
+        hintBounds.left += 12.0F;
+        hintBounds.right = std::max(hintBounds.left, hintBounds.right - 12.0F);
         drawText(
-            tree_->name(selectedNode_),
-            resources_->detailFormat.Get(),
-            selectedBounds,
+            core::get_string(language, core::StringId::CollectorDragHint),
+            resources_->rowNameFormat.Get(),
+            hintBounds,
             resources_->secondary.Get());
     }
 

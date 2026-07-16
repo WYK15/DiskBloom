@@ -46,6 +46,7 @@ constexpr std::array<std::wstring_view, string_count> english{
     L"Always on",
     L"Follow Windows",
     L"Off",
+    L"Drag files here to collect them for deletion",
 };
 
 constexpr std::array<std::wstring_view, string_count> simplified_chinese{
@@ -86,6 +87,7 @@ constexpr std::array<std::wstring_view, string_count> simplified_chinese{
     L"\u59cb\u7ec8\u5f00\u542f",
     L"\u8ddf\u968f Windows",
     L"\u5173\u95ed",
+    L"\u5c06\u6587\u4ef6\u62d6\u653e\u81f3\u6b64\uff0c\u4ee5\u6536\u96c6\u9700\u8981\u5220\u9664\u7684\u6587\u4ef6",
 };
 
 static_assert(english.size() == string_count);

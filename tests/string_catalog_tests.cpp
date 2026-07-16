@@ -42,6 +42,10 @@ TEST_CASE(string_catalog_switches_language) {
         == L"\u8ddf\u968f Windows");
     CHECK(get_string(Language::SimplifiedChinese, StringId::AnimationsOff)
         == L"\u5173\u95ed");
+    CHECK(get_string(Language::English, StringId::CollectorDragHint)
+        == L"Drag files here to collect them for deletion");
+    CHECK(get_string(Language::SimplifiedChinese, StringId::CollectorDragHint)
+        == L"\u5c06\u6587\u4ef6\u62d6\u653e\u81f3\u6b64\uff0c\u4ee5\u6536\u96c6\u9700\u8981\u5220\u9664\u7684\u6587\u4ef6");
 }
 
 TEST_CASE(string_catalog_rejects_invalid_identifier) {

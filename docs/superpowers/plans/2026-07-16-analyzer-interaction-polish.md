@@ -227,7 +227,7 @@ git commit -m "feat: pulse hovered analyzer branches"
 - Consumes: existing collector summary bounds, `buttonFormat`, and semantic secondary-text brush.
 - Produces: `StringId::CollectorDragHint` in both languages and one-line empty collector rendering.
 
-- [ ] **Step 1: Write failing localization tests**
+- [x] **Step 1: Write failing localization tests**
 
 Add:
 
@@ -240,15 +240,15 @@ CHECK(get_string(Language::SimplifiedChinese, StringId::CollectorDragHint)
 
 The existing completeness loop must include the new ID.
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 Expected: compilation fails because `CollectorDragHint` is missing.
 
-- [ ] **Step 3: Replace current-directory empty rendering**
+- [x] **Step 3: Replace current-directory empty rendering**
 
 Append the string ID and both translations. In the `reviewItemCount_ == 0` draw branch, remove `tree_->name(selectedNode_)`; draw `CollectorDragHint` once inside `reviewLayout_.summary` with `buttonFormat` and the secondary brush. Retain the populated count/bytes branch and drag background unchanged.
 
-- [ ] **Step 4: Verify all theme/language render combinations and commit**
+- [x] **Step 4: Verify all theme/language render combinations and commit**
 
 Run `diskbloom_tests`, `diskbloom_analyzer_render_smoke`, and all four app smoke cases, then commit:
 

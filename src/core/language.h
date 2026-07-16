@@ -47,6 +47,7 @@ enum class StringId : std::size_t {
     AnimationsAlwaysOn,
     AnimationsFollowWindows,
     AnimationsOff,
+    CollectorDragHint,
     Count,
 };
 
