@@ -1,12 +1,14 @@
 #include "test_support.h"
 
 #include "app/analyzer_view.h"
+#include "app/review_collector_interaction.h"
 
 #include <array>
 
 using diskbloom::app::AnalyzerHitTarget;
 using diskbloom::app::AnalyzerRectF;
 using diskbloom::app::compute_analyzer_layout;
+using diskbloom::app::compute_review_collector_layout;
 using diskbloom::app::hit_test_analyzer_layout;
 
 namespace {
@@ -49,6 +51,14 @@ TEST_CASE(analyzer_layout_keeps_chart_and_details_inside_supported_viewports) {
         CHECK(!overlaps(layout.reviewButton, layout.addReviewButton));
         CHECK(!overlaps(layout.addReviewButton, layout.previewButton));
         CHECK(!overlaps(layout.previewButton, layout.revealButton));
+        const auto collector = compute_review_collector_layout(
+            layout.actionBar,
+            layout.reviewButton.left,
+            viewport[1],
+            4U,
+            0U);
+        CHECK(inside(collector.summary, layout.actionBar));
+        CHECK(!overlaps(collector.summary, layout.reviewButton));
         CHECK(layout.chartGeometry.innerRadius > 0.0F);
         CHECK(layout.chartGeometry.ringWidth > 0.0F);
     }

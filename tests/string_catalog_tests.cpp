@@ -20,6 +20,9 @@ TEST_CASE(string_catalog_has_every_translation) {
 TEST_CASE(string_catalog_switches_language) {
     CHECK(get_string(Language::English, StringId::Scan) == L"Scan");
     CHECK(get_string(Language::SimplifiedChinese, StringId::Scan) == L"\u626b\u63cf");
+    CHECK(get_string(Language::English, StringId::Collected) == L"collected");
+    CHECK(get_string(Language::SimplifiedChinese, StringId::Collected)
+        == L"\u5df2\u6536\u96c6");
 }
 
 TEST_CASE(string_catalog_rejects_invalid_identifier) {

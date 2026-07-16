@@ -5,6 +5,8 @@
 
 #include <Windows.h>
 
+#include <vector>
+
 int main() {
     const auto window = CreateWindowExW(
         0U,
@@ -31,17 +33,21 @@ int main() {
 
     diskbloom::core::ScanTree tree;
     const auto root = tree.add_root(L"root", diskbloom::core::ScanNodeFlags::Directory);
-    const auto folder = tree.add_child(
-        root,
-        L"folder",
-        0U,
-        diskbloom::core::ScanNodeFlags::Directory);
-    (void)tree.add_child(folder, L"one.bin", 60U, diskbloom::core::ScanNodeFlags::None);
-    (void)tree.add_child(folder, L"two.bin", 40U, diskbloom::core::ScanNodeFlags::None);
+    std::vector<diskbloom::core::NodeIndex> reviewNodes;
+    reviewNodes.reserve(20U);
+    for (std::size_t index = 0U; index < 20U; ++index) {
+        reviewNodes.push_back(tree.add_child(
+            root,
+            L"reviewed-file-with-a-long-name.bin",
+            1024U * (index + 1U),
+            diskbloom::core::ScanNodeFlags::None));
+    }
     tree.aggregate();
 
     diskbloom::app::AnalyzerView analyzer;
     analyzer.set_tree(&tree, root);
+    analyzer.set_review_summary(reviewNodes.size(), tree.node(root).logicalSize);
+    analyzer.set_review_nodes(reviewNodes);
     constexpr bool theme_modes[]{false, true};
     constexpr diskbloom::core::Language languages[]{
         diskbloom::core::Language::English,
@@ -55,6 +61,17 @@ int main() {
                 || FAILED(graphics.end_draw())) {
                 DestroyWindow(window);
                 return 3;
+            }
+            (void)analyzer.pointer_moved(28.0F, 570.0F);
+            if (!graphics.begin_draw(theme.window)
+                || !analyzer.draw(graphics, theme, language, 800.0F, 600.0F)
+                || FAILED(graphics.end_draw())) {
+                DestroyWindow(window);
+                return 4;
+            }
+            if (!analyzer.scroll_review(1)) {
+                DestroyWindow(window);
+                return 5;
             }
         }
     }

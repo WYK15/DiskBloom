@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app/analyzer_geometry.h"
+#include "app/review_collector_interaction.h"
 #include "core/language.h"
 #include "core/child_ranking.h"
 #include "core/scan_tree.h"
@@ -10,6 +11,7 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace diskbloom::render {
@@ -118,6 +120,7 @@ public:
     [[nodiscard]] bool set_root(core::NodeIndex root);
     void set_selected_node(core::NodeIndex node) noexcept;
     void set_review_summary(std::size_t itemCount, std::uint64_t totalBytes) noexcept;
+    void set_review_nodes(std::span<const core::NodeIndex> nodes);
     void set_recycle_in_progress(bool inProgress) noexcept;
     [[nodiscard]] core::NodeIndex current_root() const noexcept;
 
@@ -131,6 +134,7 @@ public:
     [[nodiscard]] bool pointer_moved(float xDip, float yDip);
     [[nodiscard]] bool pointer_left();
     [[nodiscard]] bool scroll_children(int deltaRows) noexcept;
+    [[nodiscard]] bool scroll_review(int deltaRows) noexcept;
     void pointer_pressed(float xDip, float yDip);
     [[nodiscard]] std::optional<AnalyzerCommand> take_command() noexcept;
 
@@ -157,6 +161,10 @@ private:
     std::size_t childScrollOffset_ = 0U;
     std::size_t reviewItemCount_ = 0U;
     std::uint64_t reviewTotalBytes_ = 0U;
+    std::vector<core::NodeIndex> reviewNodes_;
+    ReviewCollectorLayout reviewLayout_{};
+    std::size_t reviewScrollOffset_ = 0U;
+    bool reviewPanelOpen_ = false;
     bool recycleInProgress_ = false;
     AnalyzerHitTarget hoveredChrome_ = AnalyzerHitTarget::None;
     std::optional<AnalyzerCommand> pendingCommand_;

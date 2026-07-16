@@ -41,6 +41,7 @@ enum class StringId : std::size_t {
     Language,
     English,
     SimplifiedChinese,
+    Collected,
     Count,
 };
 

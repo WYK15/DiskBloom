@@ -199,6 +199,7 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
             analyzer_.set_review_summary(
                 deletionReview_.nodes().size(),
                 deletionReview_.total_bytes());
+            analyzer_.set_review_nodes(deletionReview_.nodes());
             InvalidateRect(window_, nullptr, FALSE);
         }
         return;
@@ -313,6 +314,7 @@ void MainWindow::finish_recycle_success() {
     const auto rootPath = completedScan_->rootPath;
     deletionReview_.clear();
     analyzer_.set_review_summary(0U, 0U);
+    analyzer_.set_review_nodes(deletionReview_.nodes());
     analyzer_.set_tree(nullptr, core::invalid_node);
     navigation_ = {};
     completedScan_.reset();
@@ -439,6 +441,7 @@ void MainWindow::start_scan(std::wstring rootPath) {
     scanSession_ = std::make_unique<scan::ScanSession>();
     deletionReview_.clear();
     analyzer_.set_review_summary(0U, 0U);
+    analyzer_.set_review_nodes(deletionReview_.nodes());
     try {
         if (!scanSession_->start(std::move(rootPath))) {
             (void)apply_scan_snapshot(scanUi_, scan::ScanSessionState::Failed, {});
@@ -474,6 +477,7 @@ void MainWindow::poll_scan_session() {
             completedScanTarget_ = terminalTarget;
             deletionReview_.clear();
             analyzer_.set_review_summary(0U, 0U);
+            analyzer_.set_review_nodes(deletionReview_.nodes());
             if (!completedScan_->tree.nodes().empty()
                 && open_analyzer(navigation_, completedScan_->tree, 0U)) {
                 analyzer_.set_tree(&completedScan_->tree, 0U);

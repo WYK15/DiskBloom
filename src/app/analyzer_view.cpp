@@ -278,6 +278,7 @@ struct AnalyzerView::Resources {
     core::Language language = core::Language::English;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> header;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> surface;
+    Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> panel;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> primary;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> secondary;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> hover;
@@ -335,12 +336,33 @@ void AnalyzerView::set_review_summary(
     const std::uint64_t totalBytes) noexcept {
     reviewItemCount_ = itemCount;
     reviewTotalBytes_ = totalBytes;
+    if (itemCount == 0U) {
+        reviewPanelOpen_ = false;
+    }
+}
+
+void AnalyzerView::set_review_nodes(const std::span<const core::NodeIndex> nodes) {
+    if (reviewNodes_.size() == nodes.size()
+        && std::equal(reviewNodes_.begin(), reviewNodes_.end(), nodes.begin())) {
+        return;
+    }
+    reviewNodes_.assign(nodes.begin(), nodes.end());
+    reviewScrollOffset_ = next_review_scroll_offset(
+        reviewScrollOffset_,
+        reviewNodes_.size(),
+        reviewLayout_.visibleCapacity,
+        0);
+    if (reviewNodes_.empty()) {
+        reviewPanelOpen_ = false;
+        reviewLayout_ = {};
+    }
 }
 
 void AnalyzerView::set_recycle_in_progress(const bool inProgress) noexcept {
     recycleInProgress_ = inProgress;
     if (inProgress) {
         hoveredChrome_ = AnalyzerHitTarget::None;
+        reviewPanelOpen_ = false;
         pendingCommand_.reset();
     }
 }
@@ -400,6 +422,7 @@ bool AnalyzerView::ensure_resources(
     };
     if (!makeBrush(theme.titleBar, resources->header)
         || !makeBrush(theme.row, resources->surface)
+        || !makeBrush(theme.alternateRow, resources->panel)
         || !makeBrush(theme.primaryText, resources->primary)
         || !makeBrush(theme.secondaryText, resources->secondary)
         || !makeBrush(theme.buttonHover, resources->hover)
@@ -527,6 +550,16 @@ bool AnalyzerView::draw(
         rankedChildren_.size(),
         childScrollOffset_);
     childScrollOffset_ = childListLayout_.scrollOffset;
+    reviewLayout_ = compute_review_collector_layout(
+        layout_.actionBar,
+        widthDip,
+        heightDip,
+        reviewNodes_.size(),
+        reviewScrollOffset_);
+    reviewLayout_.summary.right = std::max(
+        reviewLayout_.summary.left,
+        std::min(reviewLayout_.summary.right, layout_.reviewButton.left - 20.0F));
+    reviewScrollOffset_ = reviewLayout_.scrollOffset;
     if (!ensure_geometry()) {
         return false;
     }
@@ -654,18 +687,14 @@ bool AnalyzerView::draw(
         auto reviewText = std::to_wstring(reviewItemCount_);
         reviewText.append(L" ");
         reviewText.append(core::get_string(language, core::StringId::Items));
-        reviewText.append(L"  ");
+        reviewText.append(L"\n");
+        reviewText.append(core::get_string(language, core::StringId::Collected));
+        reviewText.append(L" ");
         reviewText.append(format_bytes(reviewTotalBytes_));
-        const AnalyzerRectF reviewBounds{
-            28.0F,
-            layout_.actionBar.top,
-            std::max(28.0F, layout_.reviewButton.left - 12.0F),
-            layout_.actionBar.bottom,
-        };
         drawText(
             reviewText,
-            resources_->detailFormat.Get(),
-            reviewBounds,
+            resources_->buttonFormat.Get(),
+            reviewLayout_.summary,
             resources_->secondary.Get());
     } else if (selectedNode_ < tree_->nodes().size()) {
         const AnalyzerRectF selectedBounds{
@@ -776,12 +805,48 @@ bool AnalyzerView::draw(
             row.sizeBounds,
             resources_->secondary.Get());
     }
+    if (reviewPanelOpen_ && !reviewNodes_.empty()) {
+        context->FillRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(reviewLayout_.panel), 5.0F, 5.0F),
+            resources_->panel.Get());
+        context->DrawRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(reviewLayout_.panel), 5.0F, 5.0F),
+            resources_->border.Get(),
+            1.0F);
+        for (const auto& row : reviewLayout_.rows) {
+            if (row.itemIndex >= reviewNodes_.size()) {
+                continue;
+            }
+            const auto node = reviewNodes_[row.itemIndex];
+            if (node >= tree_->nodes().size()) {
+                continue;
+            }
+            drawText(
+                tree_->name(node),
+                resources_->rowNameFormat.Get(),
+                row.nameBounds,
+                resources_->primary.Get());
+            const auto size = format_bytes(tree_->node(node).logicalSize);
+            drawText(
+                size,
+                resources_->rowSizeFormat.Get(),
+                row.sizeBounds,
+                resources_->secondary.Get());
+        }
+    }
     return true;
 }
 
 bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
+    const auto pointerOverReviewPanel = reviewPanelOpen_
+        && contains_point(reviewLayout_.panel, xDip, yDip);
+    const auto nextReviewPanelOpen = !recycleInProgress_ && !reviewNodes_.empty()
+        && (contains_point(reviewLayout_.summary, xDip, yDip)
+            || pointerOverReviewPanel);
     const auto target = hit_test_analyzer_layout(layout_, xDip, yDip);
-    const auto nextChild = hit_test_analyzer_child_rows(childListLayout_, xDip, yDip);
+    const auto nextChild = pointerOverReviewPanel
+        ? std::optional<std::size_t>{}
+        : hit_test_analyzer_child_rows(childListLayout_, xDip, yDip);
     const auto nextChrome = target == AnalyzerHitTarget::Back
             || target == AnalyzerHitTarget::MinimizeWindow
             || target == AnalyzerHitTarget::MaximizeWindow
@@ -793,7 +858,8 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
         ? target
         : AnalyzerHitTarget::None;
     std::optional<core::SunburstHit> nextSegment;
-    if (!nextChild.has_value() && target == AnalyzerHitTarget::Chart) {
+    if (!pointerOverReviewPanel && !nextChild.has_value()
+        && target == AnalyzerHitTarget::Chart) {
         nextSegment = core::hit_test_sunburst(
             sunburst_,
             layout_.chartGeometry,
@@ -803,24 +869,28 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
     const auto sameSegment = hoveredSegment_.has_value() == nextSegment.has_value()
         && (!hoveredSegment_.has_value()
             || hoveredSegment_->segmentIndex == nextSegment->segmentIndex);
-    if (hoveredChrome_ == nextChrome && sameSegment && hoveredChild_ == nextChild) {
+    if (hoveredChrome_ == nextChrome && sameSegment && hoveredChild_ == nextChild
+        && reviewPanelOpen_ == nextReviewPanelOpen) {
         return false;
     }
     hoveredChrome_ = nextChrome;
     hoveredSegment_ = nextSegment;
     hoveredChild_ = nextChild;
+    reviewPanelOpen_ = nextReviewPanelOpen;
     return true;
 }
 
 bool AnalyzerView::pointer_left() {
     if (hoveredChrome_ == AnalyzerHitTarget::None
         && !hoveredSegment_.has_value()
-        && !hoveredChild_.has_value()) {
+        && !hoveredChild_.has_value()
+        && !reviewPanelOpen_) {
         return false;
     }
     hoveredChrome_ = AnalyzerHitTarget::None;
     hoveredSegment_.reset();
     hoveredChild_.reset();
+    reviewPanelOpen_ = false;
     return true;
 }
 
@@ -838,7 +908,27 @@ bool AnalyzerView::scroll_children(const int deltaRows) noexcept {
     return true;
 }
 
+bool AnalyzerView::scroll_review(const int deltaRows) noexcept {
+    if (!reviewPanelOpen_) {
+        return false;
+    }
+    const auto next = next_review_scroll_offset(
+        reviewScrollOffset_,
+        reviewNodes_.size(),
+        reviewLayout_.visibleCapacity,
+        deltaRows);
+    if (next == reviewScrollOffset_) {
+        return false;
+    }
+    reviewScrollOffset_ = next;
+    return true;
+}
+
 void AnalyzerView::pointer_pressed(const float xDip, const float yDip) {
+    if (reviewPanelOpen_ && contains_point(reviewLayout_.panel, xDip, yDip)) {
+        pendingCommand_.reset();
+        return;
+    }
     if (const auto childIndex = hit_test_analyzer_child_rows(
             childListLayout_,
             xDip,
