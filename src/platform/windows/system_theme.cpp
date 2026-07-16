@@ -34,4 +34,20 @@ bool is_system_dark_theme() noexcept {
     return is_dark_theme_registry_value(static_cast<std::uint32_t>(value));
 }
 
+bool resolve_client_area_animations(
+    const bool querySucceeded,
+    const bool enabled) noexcept {
+    return querySucceeded ? enabled : true;
+}
+
+bool client_area_animations_enabled() noexcept {
+    BOOL enabled = TRUE;
+    const auto succeeded = SystemParametersInfoW(
+        SPI_GETCLIENTAREAANIMATION,
+        0U,
+        &enabled,
+        0U) != FALSE;
+    return resolve_client_area_animations(succeeded, enabled != FALSE);
+}
+
 } // namespace diskbloom::platform::windows

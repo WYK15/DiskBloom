@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <string>
 
 namespace diskbloom::app {
@@ -23,7 +24,9 @@ namespace {
 constexpr wchar_t window_class_name[] = L"DiskBloom.MainWindow";
 constexpr UINT_PTR scan_timer_id = 1U;
 constexpr UINT_PTR recycle_timer_id = 2U;
+constexpr UINT_PTR animation_timer_id = 3U;
 constexpr UINT scan_timer_interval_ms = 33U;
+constexpr UINT animation_timer_interval_ms = 16U;
 
 std::wstring menu_text(const core::Language language, const core::StringId id) {
     return std::wstring(core::get_string(language, id));
@@ -297,6 +300,11 @@ bool MainWindow::apply_analyzer_input_actions(const AnalyzerInputActions& action
     if (actions.cancelDrag) {
         changed = analyzer_.cancel_drag();
     }
+    if (actions.cancelTransition && analyzer_.transition_active()) {
+        analyzer_.cancel_transition();
+        KillTimer(window_, animation_timer_id);
+        changed = true;
+    }
     if (actions.clearHover) {
         changed = analyzer_.pointer_left() || changed;
     }
@@ -329,6 +337,8 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
         ShowWindow(window_, IsZoomed(window_) ? SW_RESTORE : SW_MAXIMIZE);
         return;
     case AnalyzerCommandKind::CloseWindow:
+        analyzer_.cancel_transition();
+        KillTimer(window_, animation_timer_id);
         DestroyWindow(window_);
         return;
     case AnalyzerCommandKind::PreviewNode:
@@ -390,14 +400,26 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
     }
     if (navigation_.view == MainContentView::Analyzer) {
         if (navigation_.root != previousRoot) {
-            (void)analyzer_.set_root(navigation_.root);
+            (void)analyzer_.navigate_to_root(
+                navigation_.root,
+                std::chrono::steady_clock::now(),
+                platform::windows::client_area_animations_enabled());
+            if (analyzer_.transition_active()) {
+                SetTimer(
+                    window_,
+                    animation_timer_id,
+                    animation_timer_interval_ms,
+                    nullptr);
+            } else {
+                KillTimer(window_, animation_timer_id);
+            }
         }
         if (navigation_.selected != previousSelected) {
             analyzer_.set_selected_node(navigation_.selected);
         }
     } else {
         (void)apply_analyzer_input_actions(compute_analyzer_input_actions(
-            AnalyzerInputTransition::PointerLeft,
+            AnalyzerInputTransition::ContentChanging,
             analyzer_.drag_pending(),
             GetCapture() == window_));
     }
@@ -478,6 +500,7 @@ void MainWindow::confirm_review_deletion() {
     }
 
     analyzer_.set_recycle_in_progress(true);
+    KillTimer(window_, animation_timer_id);
     SetTimer(window_, recycle_timer_id, scan_timer_interval_ms, nullptr);
     InvalidateRect(window_, nullptr, FALSE);
 }
@@ -837,6 +860,15 @@ LRESULT MainWindow::handle_message(
             poll_recycle_session();
             return 0;
         }
+        if (wParam == animation_timer_id) {
+            if (analyzer_.advance_transition(std::chrono::steady_clock::now())) {
+                InvalidateRect(window_, nullptr, FALSE);
+            }
+            if (!analyzer_.transition_active()) {
+                KillTimer(window_, animation_timer_id);
+            }
+            return 0;
+        }
         break;
 
     case WM_NCCALCSIZE:
@@ -884,6 +916,10 @@ LRESULT MainWindow::handle_message(
 
     case WM_SIZE:
         if (wParam != SIZE_MINIMIZED) {
+            if (analyzer_.transition_active()) {
+                analyzer_.cancel_transition();
+                KillTimer(window_, animation_timer_id);
+            }
             const auto resized = graphics_.resize(
                 static_cast<std::uint32_t>(LOWORD(lParam)),
                 static_cast<std::uint32_t>(HIWORD(lParam)));
@@ -1017,6 +1053,11 @@ LRESULT MainWindow::handle_message(
         break;
 
     case WM_SETTINGCHANGE:
+        if (!platform::windows::client_area_animations_enabled()
+            && analyzer_.transition_active()) {
+            analyzer_.cancel_transition();
+            KillTimer(window_, animation_timer_id);
+        }
         if (appearance_.themeMode == core::ThemeMode::System) {
             apply_appearance();
             InvalidateRect(window_, nullptr, FALSE);
@@ -1041,6 +1082,7 @@ LRESULT MainWindow::handle_message(
     case WM_DESTROY:
         KillTimer(window_, scan_timer_id);
         KillTimer(window_, recycle_timer_id);
+        KillTimer(window_, animation_timer_id);
         scanSession_.reset();
         recycleSession_.reset();
         if (breadcrumbTooltip_ != nullptr) {

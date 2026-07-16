@@ -7,7 +7,9 @@
 #include <Windows.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <utility>
 #include <vector>
 
 int main() {
@@ -525,6 +527,96 @@ int main() {
         || !analyzer.scroll_at(790.0F, 100.0F, 1)) {
         DestroyWindow(window);
         return 51;
+    }
+
+    const auto transitionStart = std::chrono::steady_clock::time_point{};
+    analyzer.set_history_availability(true, true);
+    if (!analyzer.navigate_to_root(root, transitionStart, true)
+        || !analyzer.transition_active()
+        || analyzer.current_root() != root) {
+        DestroyWindow(window);
+        return 60;
+    }
+    analyzer.pointer_pressed(analyzerLayout.previewButton.left + 4.0F,
+                             analyzerLayout.previewButton.top + 4.0F);
+    if (analyzer.take_command().has_value()
+        || analyzer.scroll_at(790.0F, 100.0F, 1)) {
+        DestroyWindow(window);
+        return 61;
+    }
+    analyzer.pointer_pressed(
+        (analyzerLayout.minimizeButton.left + analyzerLayout.minimizeButton.right) * 0.5F,
+        (analyzerLayout.minimizeButton.top + analyzerLayout.minimizeButton.bottom) * 0.5F);
+    navigationCommand = analyzer.take_command();
+    if (!navigationCommand.has_value()
+        || navigationCommand->kind != diskbloom::app::AnalyzerCommandKind::MinimizeWindow) {
+        DestroyWindow(window);
+        return 71;
+    }
+    analyzer.pointer_pressed(32.0F, 32.0F);
+    navigationCommand = analyzer.take_command();
+    if (!navigationCommand.has_value()
+        || navigationCommand->kind != diskbloom::app::AnalyzerCommandKind::NavigateBack) {
+        DestroyWindow(window);
+        return 62;
+    }
+    for (const auto dark : theme_modes) {
+        const auto theme = diskbloom::core::make_theme(dark);
+        for (const auto language : languages) {
+            if (!drawAnalyzer(theme, language)) {
+                DestroyWindow(window);
+                return 63;
+            }
+        }
+    }
+    if (!analyzer.advance_transition(transitionStart + std::chrono::milliseconds{350})
+        || !analyzer.transition_active()) {
+        DestroyWindow(window);
+        return 64;
+    }
+    for (const auto dark : theme_modes) {
+        const auto theme = diskbloom::core::make_theme(dark);
+        for (const auto language : languages) {
+            if (!drawAnalyzer(theme, language)) {
+                DestroyWindow(window);
+                return 68;
+            }
+        }
+    }
+    const auto interruption = transitionStart + std::chrono::milliseconds{400};
+    if (!analyzer.navigate_to_root(folder, interruption, true)
+        || !analyzer.transition_active()) {
+        DestroyWindow(window);
+        return 65;
+    }
+    for (const auto dark : theme_modes) {
+        const auto theme = diskbloom::core::make_theme(dark);
+        for (const auto language : languages) {
+            if (!drawAnalyzer(theme, language)) {
+                DestroyWindow(window);
+                return 69;
+            }
+        }
+    }
+    if (!analyzer.advance_transition(interruption + std::chrono::milliseconds{700})
+        || analyzer.transition_active()) {
+        DestroyWindow(window);
+        return 66;
+    }
+    for (const auto dark : theme_modes) {
+        const auto theme = diskbloom::core::make_theme(dark);
+        for (const auto language : languages) {
+            if (!drawAnalyzer(theme, language)) {
+                DestroyWindow(window);
+                return 70;
+            }
+        }
+    }
+    if (!analyzer.navigate_to_root(root, interruption, false)
+        || analyzer.transition_active()
+        || analyzer.current_root() != root) {
+        DestroyWindow(window);
+        return 67;
     }
 
     DestroyWindow(window);

@@ -22,10 +22,12 @@ AnalyzerInputActions compute_analyzer_input_actions(
         break;
     case AnalyzerInputTransition::CaptureLost:
         actions.cancelDrag = true;
+        actions.cancelTransition = true;
         break;
     case AnalyzerInputTransition::ContentChanging:
         actions.releaseCapture = captureOwned;
         actions.cancelDrag = true;
+        actions.cancelTransition = true;
         break;
     }
     return actions;

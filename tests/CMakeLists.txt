@@ -7,6 +7,7 @@ add_executable(
     analyzer_child_list_tests.cpp
     analyzer_history_tests.cpp
     analyzer_navigation_tests.cpp
+    analyzer_transition_controller_tests.cpp
     child_ranking_tests.cpp
     deletion_review_tests.cpp
     disk_overview_layout_tests.cpp
@@ -22,6 +23,7 @@ add_executable(
     string_catalog_tests.cpp
     sunburst_layout_tests.cpp
     sunburst_transition_tests.cpp
+    system_animation_tests.cpp
     theme_tests.cpp
     test_main.cpp
     test_support.cpp

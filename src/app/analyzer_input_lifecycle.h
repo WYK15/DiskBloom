@@ -14,6 +14,7 @@ struct AnalyzerInputActions {
     bool beginCapture = false;
     bool releaseCapture = false;
     bool cancelDrag = false;
+    bool cancelTransition = false;
     bool clearHover = false;
     bool dispatchCommand = false;
 };

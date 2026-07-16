@@ -41,6 +41,7 @@ TEST_CASE(analyzer_input_leave_and_capture_loss_cancel_drag) {
         AnalyzerInputTransition::CaptureLost, false, false);
     CHECK(!captureLoss.releaseCapture);
     CHECK(captureLoss.cancelDrag);
+    CHECK(captureLoss.cancelTransition);
     CHECK(!captureLoss.clearHover);
 }
 
@@ -50,6 +51,7 @@ TEST_CASE(analyzer_input_content_change_cancels_before_releasing_capture) {
     CHECK(!transition.beginCapture);
     CHECK(transition.releaseCapture);
     CHECK(transition.cancelDrag);
+    CHECK(transition.cancelTransition);
     CHECK(!transition.clearHover);
     CHECK(!transition.dispatchCommand);
 }

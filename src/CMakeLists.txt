@@ -97,6 +97,7 @@ add_library(
         app/analyzer_history.cpp
         app/analyzer_input_lifecycle.cpp
         app/analyzer_navigation.cpp
+        app/analyzer_transition_controller.cpp
         app/analyzer_view.cpp
         app/appearance_settings.cpp
         app/deletion_review.cpp

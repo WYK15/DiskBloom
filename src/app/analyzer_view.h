@@ -2,14 +2,17 @@
 
 #include "app/analyzer_breadcrumb.h"
 #include "app/analyzer_geometry.h"
+#include "app/analyzer_transition_controller.h"
 #include "app/review_collector_interaction.h"
 #include "core/language.h"
 #include "core/child_ranking.h"
 #include "core/scan_tree.h"
 #include "core/sunburst_layout.h"
+#include "core/sunburst_transition.h"
 #include "core/theme.h"
 
 #include <cstddef>
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <span>
@@ -126,6 +129,14 @@ public:
 
     void set_tree(const core::ScanTree* tree, core::NodeIndex root);
     [[nodiscard]] bool set_root(core::NodeIndex root);
+    [[nodiscard]] bool navigate_to_root(
+        core::NodeIndex root,
+        std::chrono::steady_clock::time_point now,
+        bool animationsEnabled);
+    [[nodiscard]] bool advance_transition(
+        std::chrono::steady_clock::time_point now) noexcept;
+    [[nodiscard]] bool transition_active() const noexcept;
+    void cancel_transition() noexcept;
     void set_breadcrumb(AnalyzerBreadcrumbModel model);
     void set_history_availability(bool canBack, bool canForward) noexcept;
     [[nodiscard]] std::wstring_view hovered_breadcrumb_path() const noexcept;
@@ -164,6 +175,7 @@ private:
         const core::ThemeTokens& theme,
         core::Language language);
     [[nodiscard]] bool ensure_geometry();
+    [[nodiscard]] bool ensure_transition_geometry();
     [[nodiscard]] bool ensure_breadcrumb_layout(
         render::GraphicsDevice& graphics,
         core::Language language,
@@ -174,6 +186,17 @@ private:
     core::NodeIndex root_ = core::invalid_node;
     core::NodeIndex selectedNode_ = core::invalid_node;
     core::SunburstLayout sunburst_;
+    core::SunburstTransitionPlan transitionPlan_;
+    core::SunburstTransitionFrame transitionFrame_;
+    AnalyzerTransitionController transitionController_;
+    float transitionCenterX_ = 0.0F;
+    float transitionCenterY_ = 0.0F;
+    core::SunburstGeometry transitionTargetGeometry_{};
+    float transitionLinearProgress_ = 1.0F;
+    core::NodeIndex transitionSourceRoot_ = core::invalid_node;
+    std::vector<core::RankedChild> transitionSourceRankedChildren_;
+    std::vector<std::uint8_t> transitionSourcePaletteIndices_;
+    AnalyzerChildListLayout transitionSourceChildListLayout_{};
     std::vector<core::RankedChild> rankedChildren_;
     std::vector<std::uint8_t> childPaletteIndices_;
     AnalyzerLayout layout_{};
