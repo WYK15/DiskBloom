@@ -7,6 +7,7 @@
 #include <array>
 
 using diskbloom::app::AnalyzerHitTarget;
+using diskbloom::app::AnalyzerCommandKind;
 using diskbloom::app::AnalyzerBreadcrumbLayout;
 using diskbloom::app::BreadcrumbSegmentLayout;
 using diskbloom::app::AnalyzerRectF;
@@ -86,6 +87,17 @@ TEST_CASE(analyzer_layout_chart_geometry_matches_chart_bounds) {
               + layout.chartGeometry.ringWidth * 4.0F
               - radius)
         < 0.001F);
+}
+
+TEST_CASE(analyzer_layout_scales_chart_radius_down_by_nine_percent) {
+    const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 6U);
+    const auto radius = (layout.chartBounds.right - layout.chartBounds.left) * 0.5F;
+    constexpr float unscaledResponsiveRadius = 288.0F;
+
+    CHECK(std::abs(radius - unscaledResponsiveRadius * 0.91F) < 0.001F);
+    CHECK(layout.chartGeometry.centerX
+        == (layout.chartBounds.left + layout.chartBounds.right) * 0.5F);
+    CHECK(AnalyzerCommandKind::RestoreReviewItem != AnalyzerCommandKind::ConfirmReview);
 }
 
 TEST_CASE(analyzer_hit_test_distinguishes_back_chart_and_empty_space) {

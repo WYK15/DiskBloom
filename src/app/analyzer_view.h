@@ -118,6 +118,7 @@ enum class AnalyzerCommandKind {
     PreviewNode,
     RevealNode,
     AddToReview,
+    RestoreReviewItem,
     ConfirmReview,
 };
 

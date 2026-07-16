@@ -17,6 +17,8 @@ ReviewCollectorLayout compute_review_collector_layout(
     constexpr float panelPadding = 12.0F;
     constexpr float minimumPanelTop = 64.0F;
     constexpr float sizeWidth = 96.0F;
+    constexpr float restoreSize = 28.0F;
+    constexpr float restoreSpacing = 8.0F;
 
     ReviewCollectorLayout layout;
     const auto viewportWidth = std::max(widthDip, 0.0F);
@@ -62,14 +64,38 @@ ReviewCollectorLayout compute_review_collector_layout(
     const auto sizeLeft = std::max(rowLeft, rowRight - sizeWidth);
     for (std::size_t index = 0U; index < visibleCount; ++index) {
         const auto top = panelTop + panelPadding + static_cast<float>(index) * rowHeight;
+        const auto bottom = top + rowHeight;
+        const auto restoreRight = std::min(rowRight, rowLeft + restoreSize);
+        const auto restoreTop = std::min(bottom, top + (rowHeight - restoreSize) * 0.5F);
+        const auto restoreBottom = std::min(bottom, restoreTop + restoreSize);
+        const auto nameLeft = std::min(rowRight, restoreRight + restoreSpacing);
+        const auto adjustedSizeLeft = std::max(nameLeft, sizeLeft);
         layout.rows.push_back({
-            .bounds = {rowLeft, top, rowRight, top + rowHeight},
-            .nameBounds = {rowLeft, top, std::max(rowLeft, sizeLeft - 8.0F), top + rowHeight},
-            .sizeBounds = {sizeLeft, top, rowRight, top + rowHeight},
+            .bounds = {rowLeft, top, rowRight, bottom},
+            .restoreBounds = {rowLeft, restoreTop, restoreRight, restoreBottom},
+            .nameBounds = {
+                nameLeft,
+                top,
+                std::max(nameLeft, adjustedSizeLeft - restoreSpacing),
+                bottom,
+            },
+            .sizeBounds = {adjustedSizeLeft, top, rowRight, bottom},
             .itemIndex = layout.scrollOffset + index,
         });
     }
     return layout;
+}
+
+std::optional<std::size_t> hit_test_review_restore(
+    const ReviewCollectorLayout& layout,
+    const float xDip,
+    const float yDip) noexcept {
+    for (const auto& row : layout.rows) {
+        if (contains_point(row.restoreBounds, xDip, yDip)) {
+            return row.itemIndex;
+        }
+    }
+    return std::nullopt;
 }
 
 std::size_t next_review_scroll_offset(

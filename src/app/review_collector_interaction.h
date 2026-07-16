@@ -11,6 +11,7 @@ namespace diskbloom::app {
 
 struct ReviewRowLayout {
     AnalyzerRectF bounds;
+    AnalyzerRectF restoreBounds;
     AnalyzerRectF nameBounds;
     AnalyzerRectF sizeBounds;
     std::size_t itemIndex = 0U;
@@ -55,6 +56,11 @@ enum class ReviewScrollTarget {
     std::size_t itemCount,
     std::size_t visibleCount,
     int deltaRows) noexcept;
+
+[[nodiscard]] std::optional<std::size_t> hit_test_review_restore(
+    const ReviewCollectorLayout& layout,
+    float xDip,
+    float yDip) noexcept;
 
 [[nodiscard]] bool contains_point(
     const AnalyzerRectF& bounds,

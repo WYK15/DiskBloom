@@ -238,6 +238,7 @@ bool apply_analyzer_command(
     case AnalyzerCommandKind::PreviewNode:
     case AnalyzerCommandKind::RevealNode:
     case AnalyzerCommandKind::AddToReview:
+    case AnalyzerCommandKind::RestoreReviewItem:
     case AnalyzerCommandKind::ConfirmReview:
         return false;
     }

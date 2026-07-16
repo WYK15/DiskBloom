@@ -12,6 +12,7 @@ using diskbloom::app::ReviewScrollTarget;
 using diskbloom::app::compute_review_collector_layout;
 using diskbloom::app::compute_review_drag_visual;
 using diskbloom::app::contains_point;
+using diskbloom::app::hit_test_review_restore;
 using diskbloom::app::next_review_scroll_offset;
 using diskbloom::app::review_scroll_target_at;
 
@@ -33,6 +34,53 @@ TEST_CASE(review_collector_scroll_offset_is_clamped) {
     CHECK(next_review_scroll_offset(0U, 20U, 6U, 3) == 3U);
     CHECK(next_review_scroll_offset(13U, 20U, 6U, 4) == 14U);
     CHECK(next_review_scroll_offset(0U, 2U, 6U, -1) == 0U);
+}
+
+TEST_CASE(review_collector_rows_reserve_non_overlapping_restore_targets) {
+    const AnalyzerRectF actionBar{0.0F, 640.0F, 1200.0F, 720.0F};
+    const auto layout = compute_review_collector_layout(
+        actionBar, 1200.0F, 720.0F, 4U, 0U);
+    CHECK(layout.rows.size() == 4U);
+
+    for (const auto& row : layout.rows) {
+        CHECK(row.restoreBounds.right - row.restoreBounds.left >= 28.0F);
+        CHECK(row.restoreBounds.bottom - row.restoreBounds.top >= 28.0F);
+        CHECK(row.restoreBounds.left >= row.bounds.left);
+        CHECK(row.restoreBounds.top >= row.bounds.top);
+        CHECK(row.restoreBounds.right <= row.bounds.right);
+        CHECK(row.restoreBounds.bottom <= row.bounds.bottom);
+        CHECK(row.restoreBounds.right <= row.nameBounds.left);
+        CHECK(row.nameBounds.right <= row.sizeBounds.left);
+    }
+}
+
+TEST_CASE(review_collector_restore_hit_test_uses_half_open_edges_and_item_index) {
+    const AnalyzerRectF actionBar{0.0F, 244.0F, 400.0F, 300.0F};
+    const auto layout = compute_review_collector_layout(
+        actionBar, 400.0F, 300.0F, 10U, 3U);
+    CHECK(!layout.rows.empty());
+    const auto& target = layout.rows[0];
+
+    CHECK(hit_test_review_restore(
+              layout,
+              target.restoreBounds.left,
+              target.restoreBounds.top)
+        == std::optional<std::size_t>{3U});
+    CHECK(hit_test_review_restore(
+              layout,
+              target.restoreBounds.right - 0.01F,
+              target.restoreBounds.bottom - 0.01F)
+        == std::optional<std::size_t>{3U});
+    CHECK(!hit_test_review_restore(
+               layout,
+               target.restoreBounds.right,
+               target.restoreBounds.top)
+               .has_value());
+    CHECK(!hit_test_review_restore(
+               layout,
+               target.restoreBounds.left,
+               target.restoreBounds.bottom)
+               .has_value());
 }
 
 TEST_CASE(review_collector_contains_point_uses_half_open_boundaries) {
