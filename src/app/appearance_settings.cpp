@@ -2,6 +2,20 @@
 
 namespace diskbloom::app {
 
+bool resolve_directory_transitions(
+    const DirectoryTransitionMode mode,
+    const bool windowsAnimationsEnabled) noexcept {
+    switch (mode) {
+    case DirectoryTransitionMode::AlwaysOn:
+        return true;
+    case DirectoryTransitionMode::FollowSystem:
+        return windowsAnimationsEnabled;
+    case DirectoryTransitionMode::Off:
+        return false;
+    }
+    return false;
+}
+
 bool apply_settings_command(
     AppearanceSettings& settings,
     const SettingsCommand command) noexcept {
@@ -20,6 +34,15 @@ bool apply_settings_command(
         return true;
     case SettingsCommand::LanguageChinese:
         settings.language = core::Language::SimplifiedChinese;
+        return true;
+    case SettingsCommand::DirectoryTransitionsAlwaysOn:
+        settings.directoryTransitions = DirectoryTransitionMode::AlwaysOn;
+        return true;
+    case SettingsCommand::DirectoryTransitionsFollowSystem:
+        settings.directoryTransitions = DirectoryTransitionMode::FollowSystem;
+        return true;
+    case SettingsCommand::DirectoryTransitionsOff:
+        settings.directoryTransitions = DirectoryTransitionMode::Off;
         return true;
     default:
         return false;
@@ -47,6 +70,18 @@ bool apply_launch_argument(
     }
     if (argument == L"--language=zh-CN") {
         settings.language = core::Language::SimplifiedChinese;
+        return true;
+    }
+    if (argument == L"--directory-transitions=always") {
+        settings.directoryTransitions = DirectoryTransitionMode::AlwaysOn;
+        return true;
+    }
+    if (argument == L"--directory-transitions=system") {
+        settings.directoryTransitions = DirectoryTransitionMode::FollowSystem;
+        return true;
+    }
+    if (argument == L"--directory-transitions=off") {
+        settings.directoryTransitions = DirectoryTransitionMode::Off;
         return true;
     }
     return false;

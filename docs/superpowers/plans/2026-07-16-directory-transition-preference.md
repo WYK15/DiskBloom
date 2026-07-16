@@ -33,7 +33,7 @@
 - Produces: `DirectoryTransitionMode`, `resolve_directory_transitions`, three `SettingsCommand` values, and three QA launch arguments.
 - Consumes: the existing `AppearanceSettings`, `apply_settings_command`, and `apply_launch_argument` flow.
 
-- [ ] **Step 1: Write failing model and resolver tests**
+- [x] **Step 1: Write failing model and resolver tests**
 
 Add tests that establish the default and full truth table:
 
@@ -55,7 +55,7 @@ TEST_CASE(directory_transition_policy_resolves_all_modes) {
 
 Add command-isolation assertions for `DirectoryTransitionsAlwaysOn`, `DirectoryTransitionsFollowSystem`, and `DirectoryTransitionsOff`, plus launch-argument assertions for `--directory-transitions=always`, `system`, and `off`.
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 Run in an x64 Visual Studio developer environment:
 
@@ -65,7 +65,7 @@ cmake --build build/windows-debug --config Debug --target diskbloom_tests --para
 
 Expected: compilation fails because `DirectoryTransitionMode` and `resolve_directory_transitions` are undefined.
 
-- [ ] **Step 3: Implement the minimal preference model**
+- [x] **Step 3: Implement the minimal preference model**
 
 Add these declarations and retain aggregate compatibility through a default member initializer:
 
@@ -100,7 +100,7 @@ struct AppearanceSettings {
 
 Implement the resolver as an exhaustive `switch`, extend both command and launch-argument parsers, and return `false` for unknown enum values or arguments.
 
-- [ ] **Step 4: Rebuild and verify GREEN**
+- [x] **Step 4: Rebuild and verify GREEN**
 
 Run:
 
@@ -111,7 +111,7 @@ ctest --test-dir build/windows-debug -C Debug -R '^diskbloom_tests$' --output-on
 
 Expected: build succeeds and `diskbloom_tests` passes.
 
-- [ ] **Step 5: Commit the model**
+- [x] **Step 5: Commit the model**
 
 ```powershell
 git add src/app/appearance_settings.h src/app/appearance_settings.cpp tests/appearance_settings_tests.cpp
