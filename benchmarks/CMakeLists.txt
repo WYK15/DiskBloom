@@ -18,6 +18,30 @@ add_executable(
     diskbloom_sunburst_layout_benchmark
     sunburst_layout_benchmark.cpp
 )
+
+add_executable(
+    diskbloom_scan_tree_exclusion_benchmark
+    scan_tree_exclusion_benchmark.cpp
+)
+target_link_libraries(
+    diskbloom_scan_tree_exclusion_benchmark
+    PRIVATE
+        diskbloom_core
+        diskbloom_options
+)
+target_include_directories(
+    diskbloom_scan_tree_exclusion_benchmark
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)
+add_test(
+    NAME diskbloom_scan_tree_exclusion_benchmark_gate
+    COMMAND diskbloom_scan_tree_exclusion_benchmark
+)
+set_tests_properties(
+    diskbloom_scan_tree_exclusion_benchmark_gate
+    PROPERTIES PASS_REGULAR_EXPRESSION "nodes=262145;excluded_roots=128"
+)
 target_link_libraries(
     diskbloom_sunburst_layout_benchmark
     PRIVATE

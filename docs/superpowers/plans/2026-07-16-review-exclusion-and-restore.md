@@ -1,6 +1,6 @@
 # Review Exclusion And Restore Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Shrink the analyzer sunburst, exclude reviewed files and directories from its visible layout, and restore individual reviewed roots through a DaisyDisk-style cross interaction with interruptible reflow animation.
 
@@ -37,7 +37,7 @@
 - Consumes: immutable `core::ScanTree` and normalized reviewed root indices.
 - Produces: `core::ScanTreeExclusion::rebuild`, `is_excluded_root`, `is_visible`, `effective_size`, `roots`, and `reductions`.
 
-- [ ] **Step 1: Write failing projection tests**
+- [x] **Step 1: Write failing projection tests**
 
 Create a tree with two directory branches, nested files, and non-overlapping reviewed roots. Add tests equivalent to:
 
@@ -60,7 +60,7 @@ CHECK(exclusion.effective_size(tree, root)
 
 Also assert empty projection identity, invalid roots being ignored, deterministic sorted roots/reductions, duplicate roots being counted once, an ancestor suppressing a supplied descendant, and saturating subtraction for inconsistent synthetic nodes.
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 Run in the Visual Studio x64 developer environment:
 
@@ -70,7 +70,7 @@ cmake --build --preset windows-debug --target diskbloom_tests
 
 Expected: compilation fails because `core/scan_tree_exclusion.h` does not exist.
 
-- [ ] **Step 3: Implement the sparse value type**
+- [x] **Step 3: Implement the sparse value type**
 
 Declare the stable public surface:
 
@@ -100,7 +100,7 @@ private:
 
 Normalize roots by sorting, uniquing, rejecting invalid/root node `0`, and removing any root whose ancestor is already present. Build reductions by walking each remaining root's parent chain, sorting by node, and merging with saturating addition. Use binary search for root and reduction queries; `is_visible` walks parents until the scan root.
 
-- [ ] **Step 4: Run focused and full unit tests**
+- [x] **Step 4: Run focused and full unit tests**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests
@@ -109,7 +109,7 @@ build/windows-debug/tests/diskbloom_tests.exe
 
 Expected: all unit cases pass with no new warnings.
 
-- [ ] **Step 5: Commit the projection**
+- [x] **Step 5: Commit the projection**
 
 ```powershell
 git add src/core/scan_tree_exclusion.h src/core/scan_tree_exclusion.cpp src/CMakeLists.txt tests/scan_tree_exclusion_tests.cpp tests/CMakeLists.txt
@@ -132,7 +132,7 @@ git commit -m "feat: model reviewed tree exclusions"
 - Consumes: Task 1 `core::ScanTreeExclusion`.
 - Produces: optional exclusion parameters on `build_sunburst_layout` and `rank_children` while preserving existing unfiltered calls.
 
-- [ ] **Step 1: Write failing filtered-layout tests**
+- [x] **Step 1: Write failing filtered-layout tests**
 
 Add cases using the Task 1 fixture:
 
@@ -157,7 +157,7 @@ CHECK(ranked.front().logicalSize
 
 Cover a visible directory with one excluded descendant, all children excluded, aggregate segments, deterministic ties after effective-size changes, and `nullptr` preserving current output exactly.
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests
@@ -165,7 +165,7 @@ cmake --build --preset windows-debug --target diskbloom_tests
 
 Expected: compilation fails because the overloads do not accept an exclusion.
 
-- [ ] **Step 3: Add optional projection parameters**
+- [x] **Step 3: Add optional projection parameters**
 
 Use these signatures:
 
@@ -185,7 +185,7 @@ Use these signatures:
 
 Skip excluded roots before traversal or heap insertion. Route every size comparison, sweep calculation, aggregate byte count, and emitted `logicalSize` through a local effective-size helper. A root with zero effective bytes returns no segments without fabricating an aggregate node.
 
-- [ ] **Step 4: Verify filtered and legacy behavior**
+- [x] **Step 4: Verify filtered and legacy behavior**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests
@@ -194,7 +194,7 @@ build/windows-debug/tests/diskbloom_tests.exe
 
 Expected: all projection, layout, ranking, hit-test, and existing deterministic layout cases pass.
 
-- [ ] **Step 5: Commit filtered layout support**
+- [x] **Step 5: Commit filtered layout support**
 
 ```powershell
 git add src/core/sunburst_layout.h src/core/sunburst_layout.cpp src/core/child_ranking.h src/core/child_ranking.cpp tests/sunburst_layout_tests.cpp tests/child_ranking_tests.cpp
@@ -217,7 +217,7 @@ git commit -m "feat: filter reviewed nodes from analyzer layouts"
 - Consumes: `core::ScanTreeExclusion` plus the existing navigation state/history.
 - Produces: `nearest_visible_directory`, `reconcile_analyzer_visibility`, visibility-aware `apply_analyzer_command`, and accurate visible back/forward availability.
 
-- [ ] **Step 1: Write failing navigation tests**
+- [x] **Step 1: Write failing navigation tests**
 
 Add tests proving:
 
@@ -236,11 +236,11 @@ CHECK(!apply_analyzer_command(
 
 Keep the hidden history entry in the history vector, clear the exclusion, then assert forward/back can reach it again. Add a selected-descendant fallback case and visible `can_back`/`can_forward` checks that ignore only currently hidden analyzer destinations.
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 Expected: compilation fails on the missing visibility-aware functions and parameters.
 
-- [ ] **Step 3: Implement dynamic history skipping**
+- [x] **Step 3: Implement dynamic history skipping**
 
 Add non-mutating indexed access to history:
 
@@ -272,7 +272,7 @@ Extend navigation APIs:
 
 Add `const ScanTreeExclusion* exclusion = nullptr` to `apply_analyzer_command`. Reject hidden direct destinations and loop past hidden history entries without erasing them. Reconciliation changes root/selection only; it does not append duplicate history entries.
 
-- [ ] **Step 4: Verify navigation behavior**
+- [x] **Step 4: Verify navigation behavior**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests
@@ -281,7 +281,7 @@ build/windows-debug/tests/diskbloom_tests.exe
 
 Expected: all history/navigation cases pass, including unfiltered legacy behavior.
 
-- [ ] **Step 5: Commit visibility-aware navigation**
+- [x] **Step 5: Commit visibility-aware navigation**
 
 ```powershell
 git add src/app/analyzer_history.h src/app/analyzer_history.cpp src/app/analyzer_navigation.h src/app/analyzer_navigation.cpp tests/analyzer_history_tests.cpp tests/analyzer_navigation_tests.cpp
@@ -307,7 +307,7 @@ git commit -m "feat: skip reviewed navigation destinations"
 - Consumes: current analyzer/collector geometry and localization catalog.
 - Produces: 9-percent smaller `chartBounds`, `ReviewRowLayout::restoreBounds`, `hit_test_review_restore`, `StringId::RestoreItem`, and `AnalyzerCommandKind::RestoreReviewItem`.
 
-- [ ] **Step 1: Write failing geometry and localization tests**
+- [x] **Step 1: Write failing geometry and localization tests**
 
 Assert the new radius against the pre-scale responsive radius:
 
@@ -328,11 +328,11 @@ CHECK(get_string(Language::SimplifiedChinese, StringId::RestoreItem)
     == L"\u6062\u590d\u9879\u76ee");
 ```
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 Expected: layout radius assertion fails and restore fields/functions/string IDs are missing.
 
-- [ ] **Step 3: Implement pure layout changes**
+- [x] **Step 3: Implement pure layout changes**
 
 Multiply the final responsive radius by `0.91F` before producing chart bounds and geometry. Extend rows:
 
@@ -353,7 +353,7 @@ struct ReviewRowLayout {
 
 Reserve 28 DIP at the leading edge plus 8 DIP spacing, clamp all rectangles to the row, and return the stable review item index. Add `RestoreReviewItem` to `AnalyzerCommandKind` and both localized strings without drawing the icon yet.
 
-- [ ] **Step 4: Verify layout and catalog tests**
+- [x] **Step 4: Verify layout and catalog tests**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests
@@ -362,7 +362,7 @@ build/windows-debug/tests/diskbloom_tests.exe
 
 Expected: all compact/default geometry and localization completeness tests pass.
 
-- [ ] **Step 5: Commit pure UI contracts**
+- [x] **Step 5: Commit pure UI contracts**
 
 ```powershell
 git add src/app/analyzer_view.h src/app/analyzer_view.cpp src/app/review_collector_interaction.h src/app/review_collector_interaction.cpp src/core/language.h src/core/string_catalog.cpp tests/analyzer_layout_tests.cpp tests/review_collector_interaction_tests.cpp tests/string_catalog_tests.cpp
@@ -385,7 +385,7 @@ git commit -m "feat: add collector restore targets"
 - Consumes: Tasks 1-4 projection, filtered layouts, restore command, and chart geometry.
 - Produces: `AnalyzerView::set_exclusion`, `reflow_review_change`, `hovered_review_restore_node`, a 500 ms collector duration, projected center totals, restore hover/press rendering, and interruptible same-root transitions.
 
-- [ ] **Step 1: Add failing duration and analyzer lifecycle tests**
+- [x] **Step 1: Add failing duration and analyzer lifecycle tests**
 
 Extend controller tests:
 
@@ -409,11 +409,11 @@ CHECK(!analyzer.advance_transition(start + 500ms));
 
 Add an interrupted reflow using the midpoint snapshot, an animation-disabled immediate result, an all-children-excluded `0 B` draw, and pointer navigation suppression during reflow while restore-hit commands remain allowed.
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 Expected: compilation fails on duration parameters and analyzer exclusion/reflow APIs.
 
-- [ ] **Step 3: Parameterize transition duration**
+- [x] **Step 3: Parameterize transition duration**
 
 Use:
 
@@ -428,7 +428,7 @@ void start(
 
 Store a clamped positive duration per start. Preserve every existing directory transition test at 700 ms.
 
-- [ ] **Step 4: Integrate projected rebuild and reflow**
+- [x] **Step 4: Integrate projected rebuild and reflow**
 
 Add to `AnalyzerView`:
 
@@ -455,7 +455,7 @@ layout. Match ranked source/destination rows by node and linearly interpolate
 their vertical bounds while cross-fading unmatched rows; do not limit the
 animation to an opacity-only list swap.
 
-- [ ] **Step 5: Verify deterministic render behavior**
+- [x] **Step 5: Verify deterministic render behavior**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_analyzer_render_smoke diskbloom_tests
@@ -465,7 +465,7 @@ build/windows-debug/tests/diskbloom_tests.exe
 
 Expected: start/midpoint/endpoint/interruption/static/empty states pass in all four theme-language combinations.
 
-- [ ] **Step 6: Commit analyzer reflow**
+- [x] **Step 6: Commit analyzer reflow**
 
 ```powershell
 git add src/app/analyzer_transition_controller.h src/app/analyzer_transition_controller.cpp src/app/analyzer_view.h src/app/analyzer_view.cpp tests/analyzer_transition_controller_tests.cpp tests/analyzer_render_smoke_main.cpp
@@ -494,7 +494,7 @@ git commit -m "feat: animate reviewed item reflow"
 - Consumes: normalized `DeletionReview`, `ScanTreeExclusion`, visibility reconciliation, `RestoreReviewItem`, and analyzer reflow.
 - Produces: testable `apply_review_mutation`, one authoritative projection lifecycle, synchronized add/restore/navigation/timer behavior, and localized restore help.
 
-- [ ] **Step 1: Write failing command-flow regression tests**
+- [x] **Step 1: Write failing command-flow regression tests**
 
 Add pure coordinator coverage for add and restore:
 
@@ -522,11 +522,11 @@ CHECK(restored.exclusion.empty());
 
 Also cover duplicate add, absent restore, scan-root rejection, parent replacing reviewed descendants, totals, and selected-descendant fallback. Add render/integration assertions that a successful result removes the node from the analyzer destination, restore emits the stable node, and recycling blocks restore dispatch.
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 Expected: compilation fails because `app/review_change.h` and its mutation types do not exist.
 
-- [ ] **Step 3: Own and synchronize the projection**
+- [x] **Step 3: Own and synchronize the projection**
 
 Implement the pure coordinator first:
 
@@ -576,11 +576,11 @@ breadcrumb tooltip. Show `StringId::RestoreItem` while a restore cross is
 hovered, update it after a language change, and hide it on pointer leave,
 transition completion, recycling, scan replacement, or collector closure.
 
-- [ ] **Step 4: Reset state at lifecycle boundaries**
+- [x] **Step 4: Reset state at lifecycle boundaries**
 
 On scan start/completion replacement and recycle completion, clear review and projection before setting the analyzer tree. Call `analyzer_.set_exclusion(&reviewExclusion_)` after installing a completed tree. When recycling begins, preserve the projection and rows but disable restore interactions until terminal state; successful recycling clears both before rescan.
 
-- [ ] **Step 5: Run Debug integration suite**
+- [x] **Step 5: Run Debug integration suite**
 
 ```powershell
 cmake --build --preset windows-debug
@@ -589,7 +589,7 @@ ctest --preset windows-debug --output-on-failure
 
 Expected: all existing and new CTest targets pass, including dark/light en-US/zh-CN app smoke.
 
-- [ ] **Step 6: Commit integrated review behavior**
+- [x] **Step 6: Commit integrated review behavior**
 
 ```powershell
 git add src/app/review_change.h src/app/review_change.cpp src/app/main_window.h src/app/main_window.cpp src/app/analyzer_navigation.h src/app/analyzer_navigation.cpp src/CMakeLists.txt tests/review_change_tests.cpp tests/CMakeLists.txt tests/analyzer_navigation_tests.cpp tests/deletion_review_tests.cpp tests/analyzer_render_smoke_main.cpp
@@ -615,7 +615,7 @@ git commit -m "feat: hide and restore reviewed items"
 - Consumes: completed Tasks 1-6.
 - Produces: a repeatable projection gate, inspected pixel evidence, checked plan, and final Release executable.
 
-- [ ] **Step 1: Add the deterministic Release projection benchmark**
+- [x] **Step 1: Add the deterministic Release projection benchmark**
 
 Build a representative deep synthetic tree, choose multiple non-overlapping reviewed roots, reserve sample storage, and run projection rebuild plus effective-size/visibility queries. Print:
 
@@ -630,7 +630,7 @@ checksum=<stable value>
 
 Register `diskbloom_scan_tree_exclusion_benchmark_gate` in CTest with exact node/root/checksum regexes and a documented p95 threshold established from three Release runs on the QA host. The executable returns nonzero when count, checksum, or threshold changes.
 
-- [ ] **Step 2: Build and test Release**
+- [x] **Step 2: Build and test Release**
 
 ```powershell
 cmake --build --preset windows-release
@@ -639,11 +639,11 @@ ctest --preset windows-release --output-on-failure
 
 Expected: full Release suite passes, including projection, layout, transition, collector, hover, render, and four app smoke combinations.
 
-- [ ] **Step 3: Run performance gates three times**
+- [x] **Step 3: Run performance gates three times**
 
 Run the new exclusion benchmark plus existing layout, transition, collector, and hover-pulse benchmarks three times. Record every average, p95, throughput, segment count, and checksum. Reject material regressions or document an explicit measured trade-off before continuing.
 
-- [ ] **Step 4: Capture and inspect deterministic frames**
+- [x] **Step 4: Capture and inspect deterministic frames**
 
 Extend `--capture-dir` analyzer smoke output with the four named frames. Inspect them directly for:
 
@@ -654,11 +654,11 @@ Extend `--capture-dir` analyzer smoke output with the four named frames. Inspect
 - Restored branch returning to its original palette and relative location.
 - Readable labels and controls in both themes/languages.
 
-- [ ] **Step 5: Perform visible native QA**
+- [x] **Step 5: Perform visible native QA**
 
 In the Release app, scan a folder fixture and verify file add/restore, directory add/restore, current-directory automatic parent fallback, repeated cross clicks during an active reflow, pointer leave, scrolling, back/forward skipping, animation `Always on`/`Follow Windows`/`Off`, and recycling-disabled controls. Compare timing, hierarchy, marker-to-cross behavior, and chart reflow against the supplied DaisyDisk screenshot and recording.
 
-- [ ] **Step 6: Record QA, check the plan, and commit**
+- [x] **Step 6: Record QA, check the plan, and commit**
 
 Append commands, raw benchmark runs, test totals, limitations, and evidence paths to `docs/qa/sunburst-analyzer.md`. Mark all plan checkboxes, then run:
 
@@ -668,7 +668,7 @@ git add benchmarks/scan_tree_exclusion_benchmark.cpp benchmarks/CMakeLists.txt t
 git commit -m "docs: verify review exclusion and restore"
 ```
 
-- [ ] **Step 7: Final verification**
+- [x] **Step 7: Final verification**
 
 Run fresh Debug and Release builds plus both full CTest presets. Confirm the worktree is clean and report the exact Release executable path:
 

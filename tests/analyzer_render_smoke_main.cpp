@@ -834,9 +834,25 @@ int main(const int argc, char** argv) {
     }
 
     diskbloom::core::ScanTreeExclusion exclusion;
+    analyzer.set_review_summary(0U, 0U);
+    analyzer.set_review_nodes(std::span<const diskbloom::core::NodeIndex>{});
+    if (!captureDirectory.empty()) {
+        diskbloom::render::CapturedFrame capture;
+        if (!drawAnalyzer(
+                diskbloom::core::make_theme(true),
+                diskbloom::core::Language::English,
+                &capture)
+            || !save_png(
+                capture,
+                captureDirectory / L"before-dark-en.png")) {
+            DestroyWindow(window);
+            return 89;
+        }
+    }
     const std::array excludedNodes{folder};
     exclusion.rebuild(tree, excludedNodes);
     const std::array reviewedFolder{folder};
+    analyzer.set_review_summary(1U, tree.node(folder).logicalSize);
     const auto reflowStart = interruption + std::chrono::seconds{2};
     if (!analyzer.reflow_review_change(
             &exclusion, reviewedFolder, root, reflowStart, true)
@@ -849,6 +865,19 @@ int main(const int argc, char** argv) {
         || !analyzer.transition_active()) {
         DestroyWindow(window);
         return 85;
+    }
+    if (!captureDirectory.empty()) {
+        diskbloom::render::CapturedFrame capture;
+        if (!drawAnalyzer(
+                diskbloom::core::make_theme(true),
+                diskbloom::core::Language::English,
+                &capture)
+            || !save_png(
+                capture,
+                captureDirectory / L"collected-midpoint-dark-en.png")) {
+            DestroyWindow(window);
+            return 90;
+        }
     }
     auto reflowCollector = diskbloom::app::compute_review_collector_layout(
         analyzerLayout.actionBar, 800.0F, 600.0F, 1U, 0U);
@@ -866,6 +895,19 @@ int main(const int argc, char** argv) {
         DestroyWindow(window);
         return 86;
     }
+    if (!captureDirectory.empty()) {
+        diskbloom::render::CapturedFrame capture;
+        if (!drawAnalyzer(
+                lightTheme,
+                diskbloom::core::Language::SimplifiedChinese,
+                &capture)
+            || !save_png(
+                capture,
+                captureDirectory / L"restore-hover-light-zh.png")) {
+            DestroyWindow(window);
+            return 91;
+        }
+    }
     analyzer.pointer_down(restoreX, restoreY);
     analyzer.pointer_released(restoreX, restoreY);
     const auto restoreCommand = analyzer.take_command();
@@ -876,6 +918,7 @@ int main(const int argc, char** argv) {
         return 87;
     }
     exclusion.clear();
+    analyzer.set_review_summary(0U, 0U);
     if (!analyzer.reflow_review_change(
             &exclusion,
             std::span<const diskbloom::core::NodeIndex>{},
@@ -887,6 +930,19 @@ int main(const int argc, char** argv) {
         || analyzer.transition_active()) {
         DestroyWindow(window);
         return 88;
+    }
+    if (!captureDirectory.empty()) {
+        diskbloom::render::CapturedFrame capture;
+        if (!drawAnalyzer(
+                lightTheme,
+                diskbloom::core::Language::SimplifiedChinese,
+                &capture)
+            || !save_png(
+                capture,
+                captureDirectory / L"restored-light-zh.png")) {
+            DestroyWindow(window);
+            return 92;
+        }
     }
 
     DestroyWindow(window);

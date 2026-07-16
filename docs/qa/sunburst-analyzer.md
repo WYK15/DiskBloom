@@ -317,3 +317,56 @@ across pulse phases; after pointer leave, the same delayed comparison produced
 zero changed pixels. The deterministic fixture separately covers both a folder
 and a file row, branch isolation, disabled-animation static highlighting, and
 all four theme/language combinations.
+
+## Review Exclusion And Restore
+
+Recorded on 2026-07-17 for the immutable scan-tree projection used by the
+deletion collector. Adding a file or directory now rebuilds a sparse list of
+excluded roots and ancestor byte reductions. The analyzer omits that branch
+from its sunburst and ranked list, reconciles a hidden current directory to its
+nearest visible parent, and preserves hidden history entries so restoration
+makes them navigable again. Collector reflow uses a 500 ms interruptible
+transition; directory navigation remains 700 ms.
+
+Release projection benchmark command:
+
+```powershell
+build/windows-release/benchmarks/diskbloom_scan_tree_exclusion_benchmark.exe
+```
+
+| Run | Nodes | Roots | Iterations | Average (ms) | p95 (ms) | Checksum |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 262,145 | 128 | 200 | 0.213 | 0.250 | 120,265,807,856 |
+| 2 | 262,145 | 128 | 200 | 0.216 | 0.242 | 120,265,807,856 |
+| 3 | 262,145 | 128 | 200 | 0.230 | 0.317 | 120,265,807,856 |
+
+The executable enforces the exact node/root/checksum contract and a **5 ms**
+p95 ceiling. The same Release runs measured the million-node sunburst layout
+at **7.89-7.91 ms average** with 1,465 segments and checksum 236,505,398;
+transition p95 was **0.091-0.095 ms** with checksum 58,084,095; the collector
+processed **96.83M-99.91M operations/second** with checksum 11,879,453; hover
+p95 remained **0.003 ms** with checksum 1,024,000.
+
+Fresh Release build and CTest passed **11/11 targets**. Fresh Debug had passed
+the same feature suite before the benchmark was registered; final verification
+re-runs both configurations with the new 11-test set. The matrix includes
+dark/light, en-US/zh-CN, deterministic render capture, projection, transition,
+collector, hover, and application smoke tests.
+
+Inspected pixel evidence under `docs/qa/evidence/review-exclusion/`:
+
+- `before-dark-en.png`: smaller complete chart with stable center and layout.
+- `collected-midpoint-dark-en.png`: nonblank 250 ms contraction; the collected
+  folder is absent from the destination ranked list.
+- `restore-hover-light-zh.png`: light Chinese collector row with a theme-aware
+  cross, readable name/size, and no action-bar overlap.
+- `restored-light-zh.png`: original green branch, palette, size, and relative
+  location restored at the endpoint.
+
+Automated native interaction covers file/directory add, exact-node restore,
+current-root fallback, interrupted reflow, animation-disabled completion,
+scroll bounds, hidden-history skipping, recycling input suppression, and all
+four theme/language combinations. A destructive live Recycle Bin pass was not
+performed during this run; the existing mocked recycle/session tests and app
+smoke paths passed, while final user acceptance should exercise a disposable
+folder before release distribution.
