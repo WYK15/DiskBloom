@@ -10,6 +10,7 @@ add_executable(
     analyzer_transition_controller_tests.cpp
     child_ranking_tests.cpp
     deletion_review_tests.cpp
+    directory_transition_policy_tests.cpp
     disk_overview_layout_tests.cpp
     file_scanner_tests.cpp
     graphics_capture_tests.cpp

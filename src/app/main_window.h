@@ -50,7 +50,9 @@ private:
     void hide_breadcrumb_tooltip() noexcept;
     void show_settings_menu();
     void apply_appearance();
+    void apply_directory_transition_policy_change();
     [[nodiscard]] bool dark_theme_enabled() const noexcept;
+    [[nodiscard]] bool directory_transitions_enabled() const noexcept;
     [[nodiscard]] float pixels_to_dip(int pixels) const noexcept;
 
     [[nodiscard]] LRESULT handle_message(UINT message, WPARAM wParam, LPARAM lParam);

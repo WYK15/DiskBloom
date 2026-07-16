@@ -2,6 +2,7 @@
 
 #include "core/string_catalog.h"
 #include "core/node_path.h"
+#include "app/directory_transition_policy.h"
 #include "platform/windows/folder_picker.h"
 #include "platform/windows/shell_actions.h"
 #include "platform/windows/recycle_bin.h"
@@ -404,7 +405,7 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
             (void)analyzer_.navigate_to_root(
                 navigation_.root,
                 std::chrono::steady_clock::now(),
-                platform::windows::client_area_animations_enabled());
+                directory_transitions_enabled());
             if (analyzer_.transition_active()) {
                 SetTimer(
                     window_,
@@ -814,6 +815,7 @@ void MainWindow::show_settings_menu() {
             settingsPath,
             appearance_.directoryTransitions);
         (void)saved;
+        apply_directory_transition_policy_change();
     }
 
     SetWindowTextW(
@@ -852,6 +854,19 @@ void MainWindow::apply_appearance() {
     }
 }
 
+void MainWindow::apply_directory_transition_policy_change() {
+    const auto policy = compute_directory_transition_policy_change(
+        appearance_.directoryTransitions,
+        platform::windows::client_area_animations_enabled(),
+        analyzer_.transition_active());
+    if (!policy.completeActiveTransition) {
+        return;
+    }
+    analyzer_.cancel_transition();
+    KillTimer(window_, animation_timer_id);
+    InvalidateRect(window_, nullptr, FALSE);
+}
+
 bool MainWindow::dark_theme_enabled() const noexcept {
     if (appearance_.themeMode == core::ThemeMode::Dark) {
         return true;
@@ -860,6 +875,12 @@ bool MainWindow::dark_theme_enabled() const noexcept {
         return false;
     }
     return platform::windows::is_system_dark_theme();
+}
+
+bool MainWindow::directory_transitions_enabled() const noexcept {
+    return resolve_directory_transitions(
+        appearance_.directoryTransitions,
+        platform::windows::client_area_animations_enabled());
 }
 
 float MainWindow::pixels_to_dip(const int pixels) const noexcept {
@@ -1088,11 +1109,7 @@ LRESULT MainWindow::handle_message(
         break;
 
     case WM_SETTINGCHANGE:
-        if (!platform::windows::client_area_animations_enabled()
-            && analyzer_.transition_active()) {
-            analyzer_.cancel_transition();
-            KillTimer(window_, animation_timer_id);
-        }
+        apply_directory_transition_policy_change();
         if (appearance_.themeMode == core::ThemeMode::System) {
             apply_appearance();
             InvalidateRect(window_, nullptr, FALSE);

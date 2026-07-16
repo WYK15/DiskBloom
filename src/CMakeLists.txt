@@ -102,6 +102,7 @@ add_library(
         app/analyzer_view.cpp
         app/appearance_settings.cpp
         app/deletion_review.cpp
+        app/directory_transition_policy.cpp
         app/disk_overview.cpp
         app/main_window.cpp
         app/recycle_session.cpp

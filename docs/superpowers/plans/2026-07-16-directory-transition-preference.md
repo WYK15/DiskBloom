@@ -303,7 +303,7 @@ git commit -m "feat: expose directory transition settings"
 - Consumes: selected `DirectoryTransitionMode`, Windows animation flag, and whether an analyzer transition is active.
 - Produces: one effective policy for navigation and a testable action describing whether an active transition/timer must stop after settings or system changes.
 
-- [ ] **Step 1: Write failing runtime-policy tests**
+- [x] **Step 1: Write failing runtime-policy tests**
 
 Define expected state transitions without a native window:
 
@@ -325,11 +325,11 @@ TEST_CASE(system_change_only_stops_follow_system_animation) {
 }
 ```
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 Run the unit-test target and observe the missing policy header failure.
 
-- [ ] **Step 3: Implement and integrate the policy**
+- [x] **Step 3: Implement and integrate the policy**
 
 Expose:
 
@@ -347,7 +347,7 @@ struct DirectoryTransitionPolicyChange {
 
 Add a `MainWindow::directory_transitions_enabled()` helper that calls the pure resolver with the current system flag. Replace the direct `client_area_animations_enabled()` argument in `navigate_to_root`. After a transition setting command and on `WM_SETTINGCHANGE`, compute the policy; when `completeActiveTransition` is true, call `analyzer_.cancel_transition()`, kill `animation_timer_id`, and invalidate so the destination frame is drawn immediately.
 
-- [ ] **Step 4: Run unit and render tests**
+- [x] **Step 4: Run unit and render tests**
 
 Run:
 
@@ -358,7 +358,7 @@ ctest --test-dir build/windows-debug -C Debug --output-on-failure
 
 Expected: the full Debug suite passes, including all theme/language smoke tests and the analyzer transition capture sequence.
 
-- [ ] **Step 5: Commit runtime integration**
+- [x] **Step 5: Commit runtime integration**
 
 ```powershell
 git add src/app/directory_transition_policy.h src/app/directory_transition_policy.cpp src/app/main_window.h src/app/main_window.cpp src/CMakeLists.txt tests/directory_transition_policy_tests.cpp tests/CMakeLists.txt
