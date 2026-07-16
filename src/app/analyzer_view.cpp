@@ -378,6 +378,7 @@ struct AnalyzerView::Resources {
     bool geometryValid = false;
     bool transitionGeometryValid = false;
     core::NodeIndex hoverPulseNode = core::invalid_node;
+    std::size_t hoverPulseLayoutRevision = 0U;
     core::SunburstGeometry hoverPulseChartGeometry{};
 };
 
@@ -960,6 +961,7 @@ bool AnalyzerView::ensure_hover_pulse_geometry() {
     const auto& geometry = layout_.chartGeometry;
     if (resources.hoverPulseGeometry != nullptr
         && resources.hoverPulseNode == hoverPulse_.target()
+        && resources.hoverPulseLayoutRevision == layoutRevision_
         && resources.hoverPulseChartGeometry.centerX == geometry.centerX
         && resources.hoverPulseChartGeometry.centerY == geometry.centerY
         && resources.hoverPulseChartGeometry.innerRadius == geometry.innerRadius
@@ -992,6 +994,7 @@ bool AnalyzerView::ensure_hover_pulse_geometry() {
         return false;
     }
     resources.hoverPulseNode = hoverPulse_.target();
+    resources.hoverPulseLayoutRevision = layoutRevision_;
     resources.hoverPulseChartGeometry = geometry;
     return true;
 }
