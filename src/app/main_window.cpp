@@ -151,6 +151,12 @@ bool MainWindow::render_frame() {
     return SUCCEEDED(graphics_.end_draw());
 }
 
+void MainWindow::dispatch_analyzer_command() {
+    if (const auto command = analyzer_.take_command(); command.has_value()) {
+        handle_analyzer_command(*command);
+    }
+}
+
 void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
     const auto recycleBusy = recycleSession_ != nullptr
         && recycleSession_->state() == RecycleSessionState::Running;
@@ -228,6 +234,10 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
             analyzer_.set_selected_node(navigation_.selected);
         }
     } else {
+        (void)analyzer_.cancel_drag();
+        if (GetCapture() == window_) {
+            ReleaseCapture();
+        }
         (void)analyzer_.pointer_left();
     }
     InvalidateRect(window_, nullptr, FALSE);
@@ -312,6 +322,10 @@ void MainWindow::finish_recycle_success() {
 
     const auto scanTarget = completedScanTarget_;
     const auto rootPath = completedScan_->rootPath;
+    (void)analyzer_.cancel_drag();
+    if (GetCapture() == window_) {
+        ReleaseCapture();
+    }
     deletionReview_.clear();
     analyzer_.set_review_summary(0U, 0U);
     analyzer_.set_review_nodes(deletionReview_.nodes());
@@ -473,6 +487,10 @@ void MainWindow::poll_scan_session() {
         const auto terminalTarget = release_terminal_scan(scanUi_);
         if (result.has_value()
             && result->completion == platform::windows::ScanCompletion::Completed) {
+            (void)analyzer_.cancel_drag();
+            if (GetCapture() == window_) {
+                ReleaseCapture();
+            }
             completedScan_ = std::move(*result);
             completedScanTarget_ = terminalTarget;
             deletionReview_.clear();
@@ -728,9 +746,16 @@ LRESULT MainWindow::handle_message(
 
     case WM_MOUSELEAVE: {
         trackingMouse_ = false;
-        const auto changed = navigation_.view == MainContentView::Analyzer
-            ? analyzer_.pointer_left()
-            : overview_.pointer_left();
+        auto changed = false;
+        if (navigation_.view == MainContentView::Analyzer) {
+            changed = analyzer_.cancel_drag();
+            changed = analyzer_.pointer_left() || changed;
+            if (GetCapture() == window_) {
+                ReleaseCapture();
+            }
+        } else {
+            changed = overview_.pointer_left();
+        }
         if (changed) {
             InvalidateRect(window_, nullptr, FALSE);
         }
@@ -740,21 +765,38 @@ LRESULT MainWindow::handle_message(
     case WM_MOUSEWHEEL:
         if (navigation_.view == MainContentView::Analyzer) {
             const auto notches = GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA;
-            if (notches != 0 && analyzer_.scroll_children(-notches)) {
+            POINT point{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+            ScreenToClient(window_, &point);
+            if (notches != 0 && analyzer_.scroll_at(
+                    pixels_to_dip(point.x),
+                    pixels_to_dip(point.y),
+                    -notches)) {
                 InvalidateRect(window_, nullptr, FALSE);
             }
             return 0;
         }
         break;
 
-    case WM_LBUTTONUP:
+    case WM_LBUTTONDOWN:
         if (navigation_.view == MainContentView::Analyzer) {
-            analyzer_.pointer_pressed(
+            analyzer_.pointer_down(
                 pixels_to_dip(GET_X_LPARAM(lParam)),
                 pixels_to_dip(GET_Y_LPARAM(lParam)));
-            if (const auto command = analyzer_.take_command(); command.has_value()) {
-                handle_analyzer_command(*command);
+            if (analyzer_.drag_pending()) {
+                SetCapture(window_);
             }
+        }
+        return 0;
+
+    case WM_LBUTTONUP:
+        if (navigation_.view == MainContentView::Analyzer) {
+            analyzer_.pointer_released(
+                pixels_to_dip(GET_X_LPARAM(lParam)),
+                pixels_to_dip(GET_Y_LPARAM(lParam)));
+            if (GetCapture() == window_) {
+                ReleaseCapture();
+            }
+            dispatch_analyzer_command();
         } else {
             overview_.pointer_pressed(
                 pixels_to_dip(GET_X_LPARAM(lParam)),
@@ -762,6 +804,12 @@ LRESULT MainWindow::handle_message(
             if (const auto command = overview_.take_command(); command.has_value()) {
                 handle_overview_command(*command);
             }
+        }
+        return 0;
+
+    case WM_CAPTURECHANGED:
+        if (reinterpret_cast<HWND>(lParam) != window_ && analyzer_.cancel_drag()) {
+            InvalidateRect(window_, nullptr, FALSE);
         }
         return 0;
 

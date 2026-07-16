@@ -135,6 +135,12 @@ public:
     [[nodiscard]] bool pointer_left();
     [[nodiscard]] bool scroll_children(int deltaRows) noexcept;
     [[nodiscard]] bool scroll_review(int deltaRows) noexcept;
+    [[nodiscard]] bool scroll_at(float xDip, float yDip, int deltaRows) noexcept;
+    void pointer_down(float xDip, float yDip);
+    void pointer_released(float xDip, float yDip);
+    [[nodiscard]] bool cancel_drag() noexcept;
+    [[nodiscard]] bool drag_pending() const noexcept;
+    [[nodiscard]] bool drag_active() const noexcept;
     void pointer_pressed(float xDip, float yDip);
     [[nodiscard]] std::optional<AnalyzerCommand> take_command() noexcept;
 
@@ -166,6 +172,9 @@ private:
     std::size_t reviewScrollOffset_ = 0U;
     bool reviewPanelOpen_ = false;
     bool recycleInProgress_ = false;
+    ReviewDragState reviewDrag_;
+    float dragPointerX_ = 0.0F;
+    float dragPointerY_ = 0.0F;
     AnalyzerHitTarget hoveredChrome_ = AnalyzerHitTarget::None;
     std::optional<AnalyzerCommand> pendingCommand_;
     std::size_t layoutRevision_ = 0U;

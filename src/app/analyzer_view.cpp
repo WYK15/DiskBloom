@@ -282,6 +282,7 @@ struct AnalyzerView::Resources {
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> primary;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> secondary;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> hover;
+    Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> accent;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> border;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> danger;
     std::array<Microsoft::WRL::ComPtr<ID2D1SolidColorBrush>, palette_size> palette;
@@ -303,6 +304,7 @@ AnalyzerView::AnalyzerView() = default;
 AnalyzerView::~AnalyzerView() = default;
 
 void AnalyzerView::set_tree(const core::ScanTree* tree, const core::NodeIndex root) {
+    (void)cancel_drag();
     tree_ = tree;
     root_ = root;
     selectedNode_ = root;
@@ -317,6 +319,7 @@ bool AnalyzerView::set_root(const core::NodeIndex root) {
         || !core::has_flag(tree_->node(root).flags, core::ScanNodeFlags::Directory)) {
         return false;
     }
+    (void)cancel_drag();
     root_ = root;
     selectedNode_ = root;
     hoveredSegment_.reset();
@@ -361,6 +364,7 @@ void AnalyzerView::set_review_nodes(const std::span<const core::NodeIndex> nodes
 void AnalyzerView::set_recycle_in_progress(const bool inProgress) noexcept {
     recycleInProgress_ = inProgress;
     if (inProgress) {
+        (void)cancel_drag();
         hoveredChrome_ = AnalyzerHitTarget::None;
         reviewPanelOpen_ = false;
         pendingCommand_.reset();
@@ -426,6 +430,7 @@ bool AnalyzerView::ensure_resources(
         || !makeBrush(theme.primaryText, resources->primary)
         || !makeBrush(theme.secondaryText, resources->secondary)
         || !makeBrush(theme.buttonHover, resources->hover)
+        || !makeBrush(theme.accent, resources->accent)
         || !makeBrush(theme.border, resources->border)
         || !makeBrush(theme.danger, resources->danger)) {
         return false;
@@ -683,6 +688,13 @@ bool AnalyzerView::draw(
         AnalyzerHitTarget::Reveal,
         core::StringId::ShowInExplorer,
         resources_->primary.Get());
+    if (reviewDrag_.active()) {
+        context->FillRectangle(
+            to_d2d_rect(reviewLayout_.summary),
+            reviewDrag_.valid_drop()
+                ? resources_->accent.Get()
+                : resources_->hover.Get());
+    }
     if (reviewItemCount_ > 0U) {
         auto reviewText = std::to_wstring(reviewItemCount_);
         reviewText.append(L" ");
@@ -834,10 +846,75 @@ bool AnalyzerView::draw(
                 resources_->secondary.Get());
         }
     }
+    const auto dragNode = reviewDrag_.node();
+    if (reviewDrag_.active() && dragNode < tree_->nodes().size()) {
+        constexpr float previewWidth = 260.0F;
+        constexpr float previewHeight = 64.0F;
+        constexpr float pointerOffset = 14.0F;
+        const auto clientWidth = layout_.header.right;
+        const auto clientHeight = layout_.actionBar.bottom;
+        const auto previewLeft = std::clamp(
+            dragPointerX_ + pointerOffset,
+            0.0F,
+            std::max(0.0F, clientWidth - previewWidth));
+        const auto previewTop = std::clamp(
+            dragPointerY_ + pointerOffset,
+            0.0F,
+            std::max(0.0F, clientHeight - previewHeight));
+        const AnalyzerRectF preview{
+            previewLeft,
+            previewTop,
+            std::min(previewLeft + previewWidth, clientWidth),
+            std::min(previewTop + previewHeight, clientHeight),
+        };
+        context->FillRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(preview), 5.0F, 5.0F),
+            resources_->panel.Get());
+        context->DrawRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(preview), 5.0F, 5.0F),
+            reviewDrag_.valid_drop()
+                ? resources_->accent.Get()
+                : resources_->border.Get(),
+            1.0F);
+        const AnalyzerRectF previewName{
+            preview.left + 12.0F,
+            preview.top + 3.0F,
+            preview.right - 12.0F,
+            preview.top + 34.0F,
+        };
+        const AnalyzerRectF previewSize{
+            preview.left + 12.0F,
+            preview.top + 31.0F,
+            preview.right - 12.0F,
+            preview.bottom - 3.0F,
+        };
+        drawText(
+            tree_->name(dragNode),
+            resources_->rowNameFormat.Get(),
+            previewName,
+            resources_->primary.Get());
+        const auto dragSize = format_bytes(tree_->node(dragNode).logicalSize);
+        drawText(
+            dragSize,
+            resources_->rowNameFormat.Get(),
+            previewSize,
+            resources_->secondary.Get());
+    }
     return true;
 }
 
 bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
+    auto dragChanged = false;
+    if (reviewDrag_.pending() || reviewDrag_.active()) {
+        const auto pointerChanged = dragPointerX_ != xDip || dragPointerY_ != yDip;
+        dragPointerX_ = xDip;
+        dragPointerY_ = yDip;
+        dragChanged = reviewDrag_.move(
+            xDip,
+            yDip,
+            contains_point(reviewLayout_.summary, xDip, yDip));
+        dragChanged = dragChanged || (reviewDrag_.active() && pointerChanged);
+    }
     const auto pointerOverReviewPanel = reviewPanelOpen_
         && contains_point(reviewLayout_.panel, xDip, yDip);
     const auto nextReviewPanelOpen = !recycleInProgress_ && !reviewNodes_.empty()
@@ -871,7 +948,7 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
             || hoveredSegment_->segmentIndex == nextSegment->segmentIndex);
     if (hoveredChrome_ == nextChrome && sameSegment && hoveredChild_ == nextChild
         && reviewPanelOpen_ == nextReviewPanelOpen) {
-        return false;
+        return dragChanged;
     }
     hoveredChrome_ = nextChrome;
     hoveredSegment_ = nextSegment;
@@ -922,6 +999,84 @@ bool AnalyzerView::scroll_review(const int deltaRows) noexcept {
     }
     reviewScrollOffset_ = next;
     return true;
+}
+
+bool AnalyzerView::scroll_at(
+    const float xDip,
+    const float yDip,
+    const int deltaRows) noexcept {
+    return reviewPanelOpen_ && contains_point(reviewLayout_.panel, xDip, yDip)
+        ? scroll_review(deltaRows)
+        : scroll_children(deltaRows);
+}
+
+void AnalyzerView::pointer_down(const float xDip, const float yDip) {
+    (void)cancel_drag();
+    pendingCommand_.reset();
+    (void)pointer_moved(xDip, yDip);
+    if (recycleInProgress_ || tree_ == nullptr
+        || (reviewPanelOpen_ && contains_point(reviewLayout_.panel, xDip, yDip))) {
+        return;
+    }
+
+    auto node = core::invalid_node;
+    if (const auto childIndex = hit_test_analyzer_child_rows(
+            childListLayout_,
+            xDip,
+            yDip);
+        childIndex.has_value() && *childIndex < rankedChildren_.size()) {
+        node = rankedChildren_[*childIndex].node;
+    } else if (hit_test_analyzer_layout(layout_, xDip, yDip) == AnalyzerHitTarget::Chart) {
+        const auto hit = core::hit_test_sunburst(
+            sunburst_,
+            layout_.chartGeometry,
+            xDip,
+            yDip);
+        if (hit.has_value() && !hit->aggregate) {
+            node = hit->node;
+        }
+    }
+
+    if (node == root_ || node == core::invalid_node || node >= tree_->nodes().size()) {
+        return;
+    }
+    dragPointerX_ = xDip;
+    dragPointerY_ = yDip;
+    (void)reviewDrag_.begin(node, xDip, yDip);
+}
+
+void AnalyzerView::pointer_released(const float xDip, const float yDip) {
+    if (!reviewDrag_.pending() && !reviewDrag_.active()) {
+        pointer_pressed(xDip, yDip);
+        return;
+    }
+
+    const auto overCollector = contains_point(reviewLayout_.summary, xDip, yDip);
+    (void)reviewDrag_.move(xDip, yDip, overCollector);
+    const auto wasActive = reviewDrag_.active();
+    const auto droppedNode = reviewDrag_.release(overCollector);
+    if (droppedNode.has_value() && !recycleInProgress_) {
+        pendingCommand_ = AnalyzerCommand{
+            AnalyzerCommandKind::AddToReview,
+            *droppedNode,
+        };
+    } else if (!wasActive) {
+        pointer_pressed(xDip, yDip);
+    } else {
+        pendingCommand_.reset();
+    }
+}
+
+bool AnalyzerView::cancel_drag() noexcept {
+    return reviewDrag_.cancel();
+}
+
+bool AnalyzerView::drag_pending() const noexcept {
+    return reviewDrag_.pending();
+}
+
+bool AnalyzerView::drag_active() const noexcept {
+    return reviewDrag_.active();
 }
 
 void AnalyzerView::pointer_pressed(const float xDip, const float yDip) {

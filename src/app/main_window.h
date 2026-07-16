@@ -34,6 +34,7 @@ private:
     [[nodiscard]] bool render_frame();
     void handle_overview_command(const OverviewCommand& command);
     void handle_analyzer_command(const AnalyzerCommand& command);
+    void dispatch_analyzer_command();
     void confirm_review_deletion();
     void handle_volume_scan(std::size_t volumeIndex);
     void handle_folder_scan();
