@@ -330,7 +330,7 @@ git commit -m "fix: restore analyzer header window dragging"
 - Consumes: completed Tasks 1-4.
 - Produces: inspected pixel evidence, repeated performance results, checked plan, and latest Release executable.
 
-- [ ] **Step 1: Build and test Release**
+- [x] **Step 1: Build and test Release**
 
 ```powershell
 cmake --build build/windows-release --config Release --parallel
@@ -339,19 +339,19 @@ ctest --test-dir build/windows-release -C Release --output-on-failure
 
 Expected: the full suite passes, including dark/light, en-US/zh-CN, transition, collector, and new hover tests.
 
-- [ ] **Step 2: Capture and inspect visual states**
+- [x] **Step 2: Capture and inspect visual states**
 
 Extend the deterministic analyzer capture path to save dark/en-US animated highlight, light/zh-CN animated highlight, and dark/zh-CN empty collector hint frames. Inspect each image for correct branch isolation, visible but readable overlay, unclipped hint text, and no overlap.
 
-- [ ] **Step 3: Re-run performance gates**
+- [x] **Step 3: Re-run performance gates**
 
 Run the Release sunburst transition and collector benchmarks three times. Checksums and existing gates must remain unchanged. Record the hover branch geometry construction timing over a deterministic 2,048-segment layout; its loop performs no filesystem access and must remain below 1 ms P95 on the recorded host.
 
-- [ ] **Step 4: Manual native interaction verification**
+- [x] **Step 4: Manual native interaction verification**
 
 In the visible Release app, hover one file and one directory, move between rows, leave the window, toggle animation modes, drag the window from multiple breadcrumb gaps, and click all breadcrumb/window controls. Repeat the empty hint check in both languages and themes.
 
-- [ ] **Step 5: Record QA and commit**
+- [x] **Step 5: Record QA and commit**
 
 Update QA with commands, results, limitations, and evidence paths; mark every plan checkbox, run `git diff --check`, and commit:
 

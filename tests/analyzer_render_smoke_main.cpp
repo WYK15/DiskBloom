@@ -12,12 +12,26 @@
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 namespace {
+
+[[nodiscard]] diskbloom::render::CapturedFrame crop_bottom(
+    const diskbloom::render::CapturedFrame& source,
+    const std::uint32_t height) {
+    diskbloom::render::CapturedFrame cropped;
+    cropped.width = source.width;
+    cropped.height = std::min(height, source.height);
+    cropped.rowPitch = source.rowPitch;
+    const auto firstByte = static_cast<std::size_t>(
+        source.height - cropped.height) * source.rowPitch;
+    cropped.pixels.assign(source.pixels.begin() + firstByte, source.pixels.end());
+    return cropped;
+}
 
 [[nodiscard]] bool save_png(
     const diskbloom::render::CapturedFrame& capture,
@@ -82,7 +96,7 @@ int main(const int argc, char** argv) {
         0U,
         L"STATIC",
         L"DiskBloom analyzer render smoke test",
-        WS_OVERLAPPED,
+        WS_POPUP,
         0,
         0,
         800,
@@ -112,6 +126,11 @@ int main(const int argc, char** argv) {
         root,
         L"tiny.bin",
         1U,
+        diskbloom::core::ScanNodeFlags::None);
+    (void)tree.add_child(
+        root,
+        L"other.bin",
+        96U * 1024U,
         diskbloom::core::ScanNodeFlags::None);
     std::vector<diskbloom::core::NodeIndex> reviewNodes;
     reviewNodes.reserve(20U);
@@ -273,7 +292,7 @@ int main(const int argc, char** argv) {
 
     const auto analyzerLayout = diskbloom::app::compute_analyzer_layout(800.0F, 600.0F, 2U);
     const auto childLayout = diskbloom::app::compute_analyzer_child_list_layout(
-        analyzerLayout.detailsBounds, 2U, 0U);
+        analyzerLayout.detailsBounds, 3U, 0U);
     const auto& childRow = childLayout.rows.front().bounds;
     const auto childRowX = (childRow.left + childRow.right) * 0.5F;
     const auto childRowY = (childRow.top + childRow.bottom) * 0.5F;
@@ -291,6 +310,55 @@ int main(const int argc, char** argv) {
         || !analyzer.hover_pulse_timer_required()) {
         DestroyWindow(window);
         return 80;
+    }
+    if (!captureDirectory.empty()) {
+        Sleep(450U);
+        diskbloom::render::CapturedFrame darkHover;
+        diskbloom::render::CapturedFrame lightHover;
+        if (!drawAnalyzer(
+                diskbloom::core::make_theme(true),
+                diskbloom::core::Language::English,
+                &darkHover)
+            || !save_png(
+                darkHover,
+                captureDirectory / L"hover-pulse-dark-en.png")
+            || !drawAnalyzer(
+                lightTheme,
+                diskbloom::core::Language::SimplifiedChinese,
+                &lightHover)
+            || !save_png(
+                lightHover,
+                captureDirectory / L"hover-pulse-light-zh.png")) {
+            DestroyWindow(window);
+            return 83;
+        }
+
+        (void)analyzer.pointer_left();
+        analyzer.set_review_summary(0U, 0U);
+        analyzer.set_review_nodes(std::span<const diskbloom::core::NodeIndex>{});
+        diskbloom::render::CapturedFrame collectorHint;
+        if (!graphics.resize(1200U, 720U)
+            || !graphics.begin_draw(diskbloom::core::make_theme(true).window)
+            || !analyzer.draw(
+                graphics,
+                diskbloom::core::make_theme(true),
+                diskbloom::core::Language::SimplifiedChinese,
+                1200.0F,
+                720.0F)
+            || FAILED(graphics.end_draw(&collectorHint))
+            || !save_png(
+                crop_bottom(collectorHint, 88U),
+                captureDirectory / L"collector-hint-dark-zh.png")
+            || !graphics.resize(800U, 600U)
+            || !drawAnalyzer(
+                diskbloom::core::make_theme(true),
+                diskbloom::core::Language::SimplifiedChinese)) {
+            DestroyWindow(window);
+            return 84;
+        }
+        analyzer.set_review_summary(reviewNodes.size(), tree.node(root).logicalSize);
+        analyzer.set_review_nodes(reviewNodes);
+        (void)analyzer.pointer_moved(childRowX, childRowY);
     }
     analyzer.set_hover_animations_enabled(false);
     if (!analyzer.hover_pulse_active()
@@ -342,8 +410,9 @@ int main(const int argc, char** argv) {
     const auto segment = std::find_if(
         sunburst.segments.begin(),
         sunburst.segments.end(),
-        [](const diskbloom::core::SunburstSegment& value) {
-            return !diskbloom::core::has_flag(
+        [folder](const diskbloom::core::SunburstSegment& value) {
+            return value.node == folder
+                && !diskbloom::core::has_flag(
                 value.flags,
                 diskbloom::core::SunburstSegmentFlags::Aggregate);
         });

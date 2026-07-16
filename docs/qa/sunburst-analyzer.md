@@ -259,3 +259,61 @@ Verification on the same host, while the Windows flag remained disabled:
 The final Release transition sample interpolated 2,048 segments over 60 frames
 at **0.090 ms average** and **0.093 ms p95**, with checksum **58,084,095**. The
 8 ms p95 regression gate remains unchanged.
+
+## Analyzer Interaction Polish
+
+Recorded on 2026-07-16 in Release after adding right-list branch pulsing, the
+localized empty collector hint, and geometry-aware native header dragging.
+The hover controller uses a 900 ms sine pulse. A row change builds one cached
+Direct2D path from the bounded 2,048-segment layout; animation frames only
+change brush opacity and submit one additional `FillGeometry`. When effective
+animations are disabled, the same branch remains statically highlighted and
+no hover timer is required.
+
+The empty collector now renders `Drag files here to collect them for deletion`
+or `将文件拖放至此，以收集需要删除的文件` with the semantic secondary-text
+brush. The default 1,200-DIP layout displays each translation on one line; the
+compact fixture uses DirectWrite ellipsis rather than allowing overlap. Header
+hit testing keeps back/forward, visible breadcrumb pills, the ellipsis, and the
+three window controls interactive while returning `HTCAPTION` for unused gaps.
+
+Release hover benchmark command:
+
+```powershell
+build/windows-release/benchmarks/diskbloom_analyzer_hover_pulse_benchmark.exe
+```
+
+| Run | Segments | Iterations | Average (ms) | p95 (ms) | Checksum |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 2,048 | 1,000 | 0.003 | 0.003 | 1,024,000 |
+| 2 | 2,048 | 1,000 | 0.003 | 0.003 | 1,024,000 |
+| 3 | 2,048 | 1,000 | 0.003 | 0.003 | 1,024,000 |
+
+The p95 gate is **1 ms**. The existing transition benchmark recorded p95 values
+of **0.090, 0.090, and 0.095 ms** with checksum **58,084,095**. The collector
+benchmark processed one million iterations at **92.69M, 97.69M, and 98.76M
+operations/second**, with checksum **11,879,453** in all three runs.
+
+Fresh Debug and Release builds both passed **10/10 CTest targets**, including
+the dark/light en-US/zh-CN app smoke matrix, deterministic analyzer render
+smoke, and all three performance gates.
+
+Inspected pixel evidence under
+`docs/qa/evidence/analyzer-interaction-polish/`:
+
+- `hover-pulse-dark-en.png`: the hovered folder branch is brighter while the
+  independent blue file branch remains unchanged.
+- `hover-pulse-light-zh.png`: the same branch isolation is visible in the light
+  theme with Chinese UI.
+- `collector-hint-dark-zh.png`: the complete Chinese hint fits on one line at
+  the default window width without overlapping the action buttons.
+
+Visible native Release verification scanned `C:\` and exercised the live
+analyzer. Dragging from a header gap moved the restored window from
+`(880,456)` to `(980,506)`. `WM_NCHITTEST` returned `HTCAPTION` for the gap and
+`HTCLIENT` for the back button, visible breadcrumb regions, and window-control
+region. Moving between ranked rows produced 188 changed sampled chart pixels
+across pulse phases; after pointer leave, the same delayed comparison produced
+zero changed pixels. The deterministic fixture separately covers both a folder
+and a file row, branch isolation, disabled-animation static highlighting, and
+all four theme/language combinations.
