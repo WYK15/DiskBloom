@@ -8,8 +8,10 @@ namespace diskbloom::app {
 
 void AnalyzerTransitionController::start(
     const std::chrono::steady_clock::time_point now,
-    const bool animationsEnabled) noexcept {
+    const bool animationsEnabled,
+    const std::chrono::milliseconds requestedDuration) noexcept {
     start_ = now;
+    duration_ = std::max(requestedDuration, std::chrono::milliseconds{1});
     active_ = animationsEnabled;
 }
 
@@ -21,7 +23,7 @@ AnalyzerTransitionAdvance AnalyzerTransitionController::advance(
     const auto elapsed = std::max(now - start_, std::chrono::steady_clock::duration::zero());
     const auto linear = std::clamp(
         std::chrono::duration<float>(elapsed).count()
-            / std::chrono::duration<float>(duration).count(),
+            / std::chrono::duration<float>(duration_).count(),
         0.0F,
         1.0F);
     if (linear >= 1.0F) {

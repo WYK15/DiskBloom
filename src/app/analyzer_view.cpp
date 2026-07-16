@@ -390,6 +390,7 @@ void AnalyzerView::set_tree(const core::ScanTree* tree, const core::NodeIndex ro
     (void)cancel_drag();
     cancel_transition();
     tree_ = tree;
+    exclusion_ = nullptr;
     root_ = root;
     selectedNode_ = root;
     hoveredSegment_.reset();
@@ -403,6 +404,14 @@ void AnalyzerView::set_tree(const core::ScanTree* tree, const core::NodeIndex ro
         set_breadcrumb({});
         set_history_availability(false, false);
     }
+    rebuild_layout();
+}
+
+void AnalyzerView::set_exclusion(const core::ScanTreeExclusion* const exclusion) noexcept {
+    if (exclusion_ == exclusion) {
+        return;
+    }
+    exclusion_ = exclusion;
     rebuild_layout();
 }
 
@@ -443,9 +452,12 @@ bool AnalyzerView::navigate_to_root(
         return set_root(root);
     }
 
+    if (transitionController_.active()) {
+        (void)advance_transition(now);
+    }
     (void)cancel_drag();
     (void)dismiss_breadcrumb_overflow();
-    const auto destination = core::build_sunburst_layout(*tree_, root, {});
+    const auto destination = core::build_sunburst_layout(*tree_, root, {}, exclusion_);
     const auto destinationLayout = compute_analyzer_layout(
         layout_.header.right,
         layout_.actionBar.bottom,
@@ -466,6 +478,9 @@ bool AnalyzerView::navigate_to_root(
     }
 
     transitionSourceRoot_ = root_;
+    transitionSourceRootBytes_ = exclusion_ != nullptr
+        ? exclusion_->effective_size(*tree_, root_)
+        : tree_->node(root_).logicalSize;
     transitionSourceRankedChildren_ = rankedChildren_;
     transitionSourcePaletteIndices_ = childPaletteIndices_;
     transitionSourceChildListLayout_ = compute_analyzer_child_list_layout(
@@ -492,6 +507,141 @@ bool AnalyzerView::navigate_to_root(
     return true;
 }
 
+bool AnalyzerView::reflow_review_change(
+    const core::ScanTreeExclusion* const exclusion,
+    const std::span<const core::NodeIndex> reviewedNodes,
+    const core::NodeIndex root,
+    const std::chrono::steady_clock::time_point now,
+    const bool animationsEnabled) {
+    if (tree_ == nullptr || root >= tree_->nodes().size()
+        || !core::has_flag(tree_->node(root).flags, core::ScanNodeFlags::Directory)) {
+        return false;
+    }
+    if (transitionController_.active()) {
+        (void)advance_transition(now);
+    }
+
+    const auto sameReviews = reviewNodes_.size() == reviewedNodes.size()
+        && std::equal(reviewNodes_.begin(), reviewNodes_.end(), reviewedNodes.begin());
+    const auto changed = exclusion_ != exclusion || root_ != root || !sameReviews;
+    if (!changed) {
+        return false;
+    }
+
+    (void)cancel_drag();
+    (void)dismiss_breadcrumb_overflow();
+    transitionSourceReviewNodes_ = reviewNodes_;
+    transitionSourceReviewPaletteIndices_ = reviewPaletteIndices_;
+    transitionSourceReviewLayout_ = compute_review_collector_layout(
+        layout_.actionBar,
+        layout_.header.right,
+        layout_.actionBar.bottom,
+        transitionSourceReviewNodes_.size(),
+        reviewScrollOffset_);
+
+    auto destinationReviewPalettes = std::vector<std::uint8_t>{};
+    destinationReviewPalettes.reserve(reviewedNodes.size());
+    for (const auto node : reviewedNodes) {
+        const auto existing = std::ranges::find(reviewNodes_, node);
+        if (existing != reviewNodes_.end()) {
+            const auto index = static_cast<std::size_t>(existing - reviewNodes_.begin());
+            destinationReviewPalettes.push_back(index < reviewPaletteIndices_.size()
+                ? reviewPaletteIndices_[index]
+                : static_cast<std::uint8_t>(node % palette_size));
+            continue;
+        }
+        auto branch = node;
+        auto palette = static_cast<std::uint8_t>(node % palette_size);
+        while (branch != core::invalid_node && branch < tree_->nodes().size()) {
+            const auto segment = std::ranges::find_if(sunburst_.segments, [branch](const auto& value) {
+                return value.node == branch && !core::has_flag(
+                    value.flags, core::SunburstSegmentFlags::Aggregate);
+            });
+            if (segment != sunburst_.segments.end()) {
+                palette = segment->paletteIndex;
+                break;
+            }
+            branch = tree_->node(branch).parent;
+        }
+        destinationReviewPalettes.push_back(palette);
+    }
+
+    const auto sourceLayout = sunburst_;
+    const auto sourceGeometry = layout_.chartGeometry;
+    const auto sourceSnapshot = transitionController_.active()
+        ? std::optional{core::snapshot_transition_frame(transitionFrame_)}
+        : std::nullopt;
+    transitionSourceRoot_ = root_;
+    transitionSourceRootBytes_ = exclusion_ != nullptr
+        ? exclusion_->effective_size(*tree_, root_)
+        : tree_->node(root_).logicalSize;
+    transitionSourceRankedChildren_ = rankedChildren_;
+    transitionSourcePaletteIndices_ = childPaletteIndices_;
+    transitionSourceChildListLayout_ = compute_analyzer_child_list_layout(
+        layout_.detailsBounds,
+        transitionSourceRankedChildren_.size(),
+        childScrollOffset_);
+
+    exclusion_ = exclusion;
+    root_ = root;
+    if (selectedNode_ >= tree_->nodes().size()
+        || (exclusion_ != nullptr && !exclusion_->is_visible(*tree_, selectedNode_))) {
+        selectedNode_ = root;
+    }
+    reviewNodes_.assign(reviewedNodes.begin(), reviewedNodes.end());
+    reviewPaletteIndices_ = std::move(destinationReviewPalettes);
+    reviewScrollOffset_ = next_review_scroll_offset(
+        reviewScrollOffset_, reviewNodes_.size(), reviewLayout_.visibleCapacity, 0);
+    rebuild_layout();
+    reviewLayout_ = compute_review_collector_layout(
+        layout_.actionBar,
+        layout_.header.right,
+        layout_.actionBar.bottom,
+        reviewNodes_.size(),
+        reviewScrollOffset_);
+    const auto destinationLayout = compute_analyzer_layout(
+        layout_.header.right,
+        layout_.actionBar.bottom,
+        sunburst_.depthRanges.size());
+    transitionPlan_ = sourceSnapshot.has_value()
+        ? core::build_sunburst_transition(
+              *sourceSnapshot, sunburst_, destinationLayout.chartGeometry, root)
+        : core::build_sunburst_transition(
+              sourceLayout, sourceGeometry, sunburst_, destinationLayout.chartGeometry, root);
+
+    if (!animationsEnabled
+        || layout_.header.right <= 0.0F
+        || layout_.actionBar.bottom <= 0.0F) {
+        cancel_transition();
+        transitionSourceReviewNodes_.clear();
+        transitionSourceReviewPaletteIndices_.clear();
+        transitionSourceReviewLayout_ = {};
+        if (reviewNodes_.empty()) {
+            reviewPanelOpen_ = false;
+        }
+        return true;
+    }
+
+    transitionFrame_.reserve(transitionPlan_.morphs.size());
+    core::interpolate_sunburst_transition(transitionPlan_, 0.0F, transitionFrame_);
+    transitionCenterX_ = destinationLayout.chartGeometry.centerX;
+    transitionCenterY_ = destinationLayout.chartGeometry.centerY;
+    transitionTargetGeometry_ = destinationLayout.chartGeometry;
+    transitionLinearProgress_ = 0.0F;
+    transitionController_.start(
+        now,
+        !transitionPlan_.morphs.empty() || !sameReviews,
+        AnalyzerTransitionController::collector_duration);
+    hoveredSegment_.reset();
+    hoveredChild_.reset();
+    hoverPulse_.clear();
+    pressedReviewRestore_.reset();
+    if (resources_ != nullptr) {
+        resources_->transitionGeometryValid = false;
+    }
+    return true;
+}
+
 bool AnalyzerView::advance_transition(
     const std::chrono::steady_clock::time_point now) noexcept {
     if (!transitionController_.active()) {
@@ -510,6 +660,10 @@ bool AnalyzerView::advance_transition(
         transitionSourcePaletteIndices_.clear();
         transitionSourceChildListLayout_ = {};
         transitionSourceRoot_ = core::invalid_node;
+        transitionSourceRootBytes_ = 0U;
+        transitionSourceReviewNodes_.clear();
+        transitionSourceReviewPaletteIndices_.clear();
+        transitionSourceReviewLayout_ = {};
     }
     if (resources_ != nullptr) {
         resources_->transitionGeometryValid = false;
@@ -548,6 +702,10 @@ void AnalyzerView::cancel_transition() noexcept {
     transitionSourcePaletteIndices_.clear();
     transitionSourceChildListLayout_ = {};
     transitionSourceRoot_ = core::invalid_node;
+    transitionSourceRootBytes_ = 0U;
+    transitionSourceReviewNodes_.clear();
+    transitionSourceReviewPaletteIndices_.clear();
+    transitionSourceReviewLayout_ = {};
     transitionLinearProgress_ = 1.0F;
     if (resources_ != nullptr) {
         resources_->transitionGeometryValid = false;
@@ -580,6 +738,14 @@ std::wstring_view AnalyzerView::hovered_breadcrumb_path() const noexcept {
         return {};
     }
     return breadcrumb_.items[*hoveredBreadcrumbItem_].absolutePath;
+}
+
+std::optional<core::NodeIndex> AnalyzerView::hovered_review_restore_node() const noexcept {
+    if (!hoveredReviewRestore_.has_value()
+        || *hoveredReviewRestore_ >= reviewNodes_.size()) {
+        return std::nullopt;
+    }
+    return reviewNodes_[*hoveredReviewRestore_];
 }
 
 bool AnalyzerView::dismiss_breadcrumb_overflow() noexcept {
@@ -615,7 +781,20 @@ void AnalyzerView::set_review_nodes(const std::span<const core::NodeIndex> nodes
         && std::equal(reviewNodes_.begin(), reviewNodes_.end(), nodes.begin())) {
         return;
     }
+    const auto oldNodes = reviewNodes_;
+    const auto oldPalettes = reviewPaletteIndices_;
     reviewNodes_.assign(nodes.begin(), nodes.end());
+    reviewPaletteIndices_.clear();
+    reviewPaletteIndices_.reserve(reviewNodes_.size());
+    for (const auto node : reviewNodes_) {
+        const auto existing = std::ranges::find(oldNodes, node);
+        const auto index = existing == oldNodes.end()
+            ? oldNodes.size()
+            : static_cast<std::size_t>(existing - oldNodes.begin());
+        reviewPaletteIndices_.push_back(index < oldPalettes.size()
+            ? oldPalettes[index]
+            : static_cast<std::uint8_t>(node % palette_size));
+    }
     reviewScrollOffset_ = next_review_scroll_offset(
         reviewScrollOffset_,
         reviewNodes_.size(),
@@ -637,6 +816,8 @@ void AnalyzerView::set_recycle_in_progress(const bool inProgress) noexcept {
         hoveredChild_.reset();
         hoverPulse_.clear();
         reviewPanelOpen_ = false;
+        hoveredReviewRestore_.reset();
+        pressedReviewRestore_.reset();
         pendingCommand_.reset();
     }
 }
@@ -648,10 +829,10 @@ core::NodeIndex AnalyzerView::current_root() const noexcept {
 void AnalyzerView::rebuild_layout() {
     sunburst_ = tree_ == nullptr
         ? core::SunburstLayout{}
-        : core::build_sunburst_layout(*tree_, root_, {});
+        : core::build_sunburst_layout(*tree_, root_, {}, exclusion_);
     rankedChildren_ = tree_ == nullptr
         ? std::vector<core::RankedChild>{}
-        : core::rank_children(*tree_, root_, 24U);
+        : core::rank_children(*tree_, root_, 24U, exclusion_);
     childPaletteIndices_.assign(rankedChildren_.size(), 0U);
     for (std::size_t childIndex = 0U; childIndex < rankedChildren_.size(); ++childIndex) {
         const auto segment = std::find_if(
@@ -1378,7 +1559,14 @@ bool AnalyzerView::draw(
         const float opacity,
         const bool destination) {
         setDetailOpacity(opacity);
-        const auto rootSizeText = format_bytes(tree_->node(detailRoot).logicalSize);
+        const auto detailBytes = destination
+            ? (exclusion_ != nullptr
+                  ? exclusion_->effective_size(*tree_, detailRoot)
+                  : tree_->node(detailRoot).logicalSize)
+            : (detailRoot == transitionSourceRoot_
+                  ? transitionSourceRootBytes_
+                  : tree_->node(detailRoot).logicalSize);
+        const auto rootSizeText = format_bytes(detailBytes);
         drawText(
             rootSizeText,
             resources_->centerFormat.Get(),
@@ -1389,7 +1577,7 @@ bool AnalyzerView::draw(
             resources_->detailHeadingFormat.Get(),
             nameBounds,
             resources_->primary.Get());
-        const auto sizeText = format_bytes(tree_->node(detailRoot).logicalSize);
+        const auto sizeText = format_bytes(detailBytes);
         drawText(sizeText, resources_->detailFormat.Get(), sizeBounds, resources_->secondary.Get());
         const auto itemCount = tree_->node(detailRoot).fileCount
             + tree_->node(detailRoot).directoryCount;
@@ -1468,21 +1656,71 @@ bool AnalyzerView::draw(
             1.0F,
             true);
     }
-    if (reviewPanelOpen_ && !reviewNodes_.empty()) {
+    if (reviewPanelOpen_
+        && (!reviewNodes_.empty()
+            || (drawingTransition && !transitionSourceReviewNodes_.empty()))) {
+        const auto panelBounds = reviewNodes_.empty()
+            ? transitionSourceReviewLayout_.panel
+            : reviewLayout_.panel;
         context->FillRoundedRectangle(
-            D2D1::RoundedRect(to_d2d_rect(reviewLayout_.panel), 5.0F, 5.0F),
+            D2D1::RoundedRect(to_d2d_rect(panelBounds), 5.0F, 5.0F),
             resources_->panel.Get());
         context->DrawRoundedRectangle(
-            D2D1::RoundedRect(to_d2d_rect(reviewLayout_.panel), 5.0F, 5.0F),
+            D2D1::RoundedRect(to_d2d_rect(panelBounds), 5.0F, 5.0F),
             resources_->border.Get(),
             1.0F);
-        for (const auto& row : reviewLayout_.rows) {
-            if (row.itemIndex >= reviewNodes_.size()) {
-                continue;
-            }
-            const auto node = reviewNodes_[row.itemIndex];
+        const auto lerpRect = [](const AnalyzerRectF& source,
+                                 const AnalyzerRectF& destination,
+                                 const float progress) noexcept {
+            const auto lerp = [progress](const float left, const float right) noexcept {
+                return left + (right - left) * progress;
+            };
+            return AnalyzerRectF{
+                lerp(source.left, destination.left),
+                lerp(source.top, destination.top),
+                lerp(source.right, destination.right),
+                lerp(source.bottom, destination.bottom),
+            };
+        };
+        const auto drawReviewRow = [&](const core::NodeIndex node,
+                                       const std::uint8_t palette,
+                                       const ReviewRowLayout& row,
+                                       const float opacity,
+                                       const bool destination) {
             if (node >= tree_->nodes().size()) {
-                continue;
+                return;
+            }
+            resources_->primary->SetOpacity(opacity);
+            resources_->secondary->SetOpacity(opacity);
+            resources_->hover->SetOpacity(opacity);
+            resources_->surface->SetOpacity(opacity);
+            resources_->palette[palette]->SetOpacity(opacity);
+            const auto hovered = destination && hoveredReviewRestore_ == row.itemIndex;
+            const auto pressed = destination && pressedReviewRestore_ == row.itemIndex;
+            if (hovered || pressed) {
+                context->FillRectangle(
+                    to_d2d_rect(row.bounds),
+                    pressed ? resources_->surface.Get() : resources_->hover.Get());
+            }
+            const auto markerCenter = D2D1::Point2F(
+                (row.restoreBounds.left + row.restoreBounds.right) * 0.5F,
+                (row.restoreBounds.top + row.restoreBounds.bottom) * 0.5F);
+            if (hovered || pressed) {
+                constexpr float crossRadius = 5.0F;
+                context->DrawLine(
+                    {markerCenter.x - crossRadius, markerCenter.y - crossRadius},
+                    {markerCenter.x + crossRadius, markerCenter.y + crossRadius},
+                    resources_->primary.Get(),
+                    1.6F);
+                context->DrawLine(
+                    {markerCenter.x + crossRadius, markerCenter.y - crossRadius},
+                    {markerCenter.x - crossRadius, markerCenter.y + crossRadius},
+                    resources_->primary.Get(),
+                    1.6F);
+            } else {
+                context->FillEllipse(
+                    D2D1::Ellipse(markerCenter, 4.5F, 4.5F),
+                    resources_->palette[palette].Get());
             }
             drawText(
                 tree_->name(node),
@@ -1495,6 +1733,64 @@ bool AnalyzerView::draw(
                 resources_->rowSizeFormat.Get(),
                 row.sizeBounds,
                 resources_->secondary.Get());
+        };
+        const auto transitionProgress = core::sunburst_transition_easing(
+            transitionLinearProgress_);
+        if (drawingTransition && !transitionSourceReviewNodes_.empty()) {
+            for (const auto& sourceRow : transitionSourceReviewLayout_.rows) {
+                if (sourceRow.itemIndex >= transitionSourceReviewNodes_.size()) {
+                    continue;
+                }
+                const auto node = transitionSourceReviewNodes_[sourceRow.itemIndex];
+                if (std::ranges::find(reviewNodes_, node) != reviewNodes_.end()) {
+                    continue;
+                }
+                const auto palette = sourceRow.itemIndex < transitionSourceReviewPaletteIndices_.size()
+                    ? transitionSourceReviewPaletteIndices_[sourceRow.itemIndex]
+                    : static_cast<std::uint8_t>(node % palette_size);
+                drawReviewRow(node, palette, sourceRow, 1.0F - transitionProgress, false);
+            }
+        }
+        for (const auto& destinationRow : reviewLayout_.rows) {
+            if (destinationRow.itemIndex >= reviewNodes_.size()) {
+                continue;
+            }
+            const auto node = reviewNodes_[destinationRow.itemIndex];
+            const auto palette = destinationRow.itemIndex < reviewPaletteIndices_.size()
+                ? reviewPaletteIndices_[destinationRow.itemIndex]
+                : static_cast<std::uint8_t>(node % palette_size);
+            auto animatedRow = destinationRow;
+            auto opacity = 1.0F;
+            if (drawingTransition) {
+                const auto sourceNode = std::ranges::find(transitionSourceReviewNodes_, node);
+                if (sourceNode == transitionSourceReviewNodes_.end()) {
+                    opacity = transitionProgress;
+                } else {
+                    const auto sourceIndex = static_cast<std::size_t>(
+                        sourceNode - transitionSourceReviewNodes_.begin());
+                    const auto sourceRow = std::ranges::find(
+                        transitionSourceReviewLayout_.rows,
+                        sourceIndex,
+                        &ReviewRowLayout::itemIndex);
+                    if (sourceRow != transitionSourceReviewLayout_.rows.end()) {
+                        animatedRow.bounds = lerpRect(sourceRow->bounds, destinationRow.bounds, transitionProgress);
+                        animatedRow.restoreBounds = lerpRect(
+                            sourceRow->restoreBounds, destinationRow.restoreBounds, transitionProgress);
+                        animatedRow.nameBounds = lerpRect(
+                            sourceRow->nameBounds, destinationRow.nameBounds, transitionProgress);
+                        animatedRow.sizeBounds = lerpRect(
+                            sourceRow->sizeBounds, destinationRow.sizeBounds, transitionProgress);
+                    }
+                }
+            }
+            drawReviewRow(node, palette, animatedRow, opacity, true);
+        }
+        resources_->primary->SetOpacity(1.0F);
+        resources_->secondary->SetOpacity(1.0F);
+        resources_->hover->SetOpacity(1.0F);
+        resources_->surface->SetOpacity(1.0F);
+        for (auto& brush : resources_->palette) {
+            brush->SetOpacity(1.0F);
         }
     }
     const auto dragNode = reviewDrag_.node();
@@ -1601,10 +1897,12 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
     const auto pointerOverReviewPanel = reviewPanelOpen_
         && contains_point(reviewLayout_.panel, xDip, yDip);
     const auto nextReviewPanelOpen = !recycleInProgress_ && !reviewNodes_.empty()
-        && !transitionController_.active()
         && !pointerOverBreadcrumb
         && (contains_point(reviewLayout_.summary, xDip, yDip)
             || pointerOverReviewPanel);
+    const auto nextReviewRestore = nextReviewPanelOpen
+        ? hit_test_review_restore(reviewLayout_, xDip, yDip)
+        : std::optional<std::size_t>{};
     const auto target = hit_test_analyzer_layout(layout_, xDip, yDip);
     const auto nextChild = pointerOverReviewPanel || pointerOverBreadcrumb
             || transitionController_.active()
@@ -1647,7 +1945,8 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
         && hoverPulse_.target() == nextPulseNode
         && hoveredBreadcrumbItem_ == nextBreadcrumbItem
         && breadcrumbEllipsisHovered_ == nextEllipsisHovered
-        && reviewPanelOpen_ == nextReviewPanelOpen) {
+        && reviewPanelOpen_ == nextReviewPanelOpen
+        && hoveredReviewRestore_ == nextReviewRestore) {
         return dragChanged || overflowChanged;
     }
     hoveredChrome_ = nextChrome;
@@ -1661,6 +1960,7 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
     hoveredBreadcrumbItem_ = nextBreadcrumbItem;
     breadcrumbEllipsisHovered_ = nextEllipsisHovered;
     reviewPanelOpen_ = nextReviewPanelOpen;
+    hoveredReviewRestore_ = nextReviewRestore;
     return true;
 }
 
@@ -1672,7 +1972,8 @@ bool AnalyzerView::pointer_left() {
         && !hoveredBreadcrumbItem_.has_value()
         && !breadcrumbEllipsisHovered_
         && !breadcrumbOverflowOpen_
-        && !reviewPanelOpen_) {
+        && !reviewPanelOpen_
+        && !hoveredReviewRestore_.has_value()) {
         return dragChanged;
     }
     hoveredChrome_ = AnalyzerHitTarget::None;
@@ -1686,6 +1987,8 @@ bool AnalyzerView::pointer_left() {
     breadcrumbFlyoutRows_.clear();
     breadcrumbFlyoutBounds_ = {};
     reviewPanelOpen_ = false;
+    hoveredReviewRestore_.reset();
+    pressedReviewRestore_.reset();
     return true;
 }
 
@@ -1753,6 +2056,13 @@ void AnalyzerView::pointer_down(const float xDip, const float yDip) {
             return;
         }
     }
+    if (!recycleInProgress_ && reviewPanelOpen_) {
+        const auto restore = hit_test_review_restore(reviewLayout_, xDip, yDip);
+        if (restore.has_value() && *restore < reviewNodes_.size()) {
+            pressedReviewRestore_ = restore;
+            return;
+        }
+    }
     const auto chrome = hit_test_analyzer_layout(layout_, xDip, yDip);
     if (chrome == AnalyzerHitTarget::Back || chrome == AnalyzerHitTarget::Forward) {
         return;
@@ -1792,6 +2102,19 @@ void AnalyzerView::pointer_down(const float xDip, const float yDip) {
 }
 
 void AnalyzerView::pointer_released(const float xDip, const float yDip) {
+    if (pressedReviewRestore_.has_value()) {
+        const auto pressed = *pressedReviewRestore_;
+        pressedReviewRestore_.reset();
+        const auto released = hit_test_review_restore(reviewLayout_, xDip, yDip);
+        pendingCommand_ = !recycleInProgress_ && released == pressed
+                && pressed < reviewNodes_.size()
+            ? std::optional<AnalyzerCommand>{AnalyzerCommand{
+                  AnalyzerCommandKind::RestoreReviewItem,
+                  reviewNodes_[pressed],
+              }}
+            : std::nullopt;
+        return;
+    }
     if (!reviewDrag_.pending() && !reviewDrag_.active()) {
         pointer_pressed(xDip, yDip);
         pressedBreadcrumbItem_.reset();

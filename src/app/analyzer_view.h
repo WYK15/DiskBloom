@@ -8,6 +8,7 @@
 #include "core/language.h"
 #include "core/child_ranking.h"
 #include "core/scan_tree.h"
+#include "core/scan_tree_exclusion.h"
 #include "core/sunburst_layout.h"
 #include "core/sunburst_transition.h"
 #include "core/theme.h"
@@ -136,8 +137,15 @@ public:
     AnalyzerView& operator=(const AnalyzerView&) = delete;
 
     void set_tree(const core::ScanTree* tree, core::NodeIndex root);
+    void set_exclusion(const core::ScanTreeExclusion* exclusion) noexcept;
     [[nodiscard]] bool set_root(core::NodeIndex root);
     [[nodiscard]] bool navigate_to_root(
+        core::NodeIndex root,
+        std::chrono::steady_clock::time_point now,
+        bool animationsEnabled);
+    [[nodiscard]] bool reflow_review_change(
+        const core::ScanTreeExclusion* exclusion,
+        std::span<const core::NodeIndex> reviewedNodes,
         core::NodeIndex root,
         std::chrono::steady_clock::time_point now,
         bool animationsEnabled);
@@ -152,6 +160,7 @@ public:
     void set_breadcrumb(AnalyzerBreadcrumbModel model);
     void set_history_availability(bool canBack, bool canForward) noexcept;
     [[nodiscard]] std::wstring_view hovered_breadcrumb_path() const noexcept;
+    [[nodiscard]] std::optional<core::NodeIndex> hovered_review_restore_node() const noexcept;
     [[nodiscard]] bool dismiss_breadcrumb_overflow() noexcept;
     void set_selected_node(core::NodeIndex node) noexcept;
     void set_review_summary(std::size_t itemCount, std::uint64_t totalBytes) noexcept;
@@ -196,6 +205,7 @@ private:
     void rebuild_layout();
 
     const core::ScanTree* tree_ = nullptr;
+    const core::ScanTreeExclusion* exclusion_ = nullptr;
     core::NodeIndex root_ = core::invalid_node;
     core::NodeIndex selectedNode_ = core::invalid_node;
     core::SunburstLayout sunburst_;
@@ -209,6 +219,7 @@ private:
     core::SunburstGeometry transitionTargetGeometry_{};
     float transitionLinearProgress_ = 1.0F;
     core::NodeIndex transitionSourceRoot_ = core::invalid_node;
+    std::uint64_t transitionSourceRootBytes_ = 0U;
     std::vector<core::RankedChild> transitionSourceRankedChildren_;
     std::vector<std::uint8_t> transitionSourcePaletteIndices_;
     AnalyzerChildListLayout transitionSourceChildListLayout_{};
@@ -235,9 +246,15 @@ private:
     std::size_t reviewItemCount_ = 0U;
     std::uint64_t reviewTotalBytes_ = 0U;
     std::vector<core::NodeIndex> reviewNodes_;
+    std::vector<std::uint8_t> reviewPaletteIndices_;
+    std::vector<core::NodeIndex> transitionSourceReviewNodes_;
+    std::vector<std::uint8_t> transitionSourceReviewPaletteIndices_;
+    ReviewCollectorLayout transitionSourceReviewLayout_{};
     ReviewCollectorLayout reviewLayout_{};
     std::size_t reviewScrollOffset_ = 0U;
     bool reviewPanelOpen_ = false;
+    std::optional<std::size_t> hoveredReviewRestore_;
+    std::optional<std::size_t> pressedReviewRestore_;
     bool recycleInProgress_ = false;
     ReviewDragState reviewDrag_;
     float dragPointerX_ = 0.0F;

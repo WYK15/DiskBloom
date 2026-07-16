@@ -60,3 +60,11 @@ TEST_CASE(analyzer_transition_cancel_is_idempotent) {
     CHECK(!controller.active());
 }
 
+TEST_CASE(analyzer_transition_uses_collector_duration_when_requested) {
+    AnalyzerTransitionController controller;
+    const auto start = std::chrono::steady_clock::time_point{};
+    controller.start(start, true, AnalyzerTransitionController::collector_duration);
+    CHECK(controller.advance(start + std::chrono::milliseconds{499}).active);
+    CHECK(!controller.advance(start + std::chrono::milliseconds{500}).active);
+}
+

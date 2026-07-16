@@ -1,6 +1,7 @@
 #include "app/analyzer_view.h"
 #include "app/review_collector_interaction.h"
 #include "core/scan_tree.h"
+#include "core/scan_tree_exclusion.h"
 #include "core/theme.h"
 #include "render/graphics_device.h"
 
@@ -830,6 +831,62 @@ int main(const int argc, char** argv) {
         || analyzer.current_root() != root) {
         DestroyWindow(window);
         return 67;
+    }
+
+    diskbloom::core::ScanTreeExclusion exclusion;
+    const std::array excludedNodes{folder};
+    exclusion.rebuild(tree, excludedNodes);
+    const std::array reviewedFolder{folder};
+    const auto reflowStart = interruption + std::chrono::seconds{2};
+    if (!analyzer.reflow_review_change(
+            &exclusion, reviewedFolder, root, reflowStart, true)
+        || !analyzer.transition_active()
+        || analyzer.current_root() != root) {
+        DestroyWindow(window);
+        return 84;
+    }
+    if (!analyzer.advance_transition(reflowStart + std::chrono::milliseconds{250})
+        || !analyzer.transition_active()) {
+        DestroyWindow(window);
+        return 85;
+    }
+    auto reflowCollector = diskbloom::app::compute_review_collector_layout(
+        analyzerLayout.actionBar, 800.0F, 600.0F, 1U, 0U);
+    reflowCollector.summary.right = std::max(
+        reflowCollector.summary.left,
+        std::min(reflowCollector.summary.right, analyzerLayout.reviewButton.left - 20.0F));
+    const auto reflowSummaryX = (reflowCollector.summary.left + reflowCollector.summary.right) * 0.5F;
+    const auto reflowSummaryY = (reflowCollector.summary.top + reflowCollector.summary.bottom) * 0.5F;
+    (void)analyzer.pointer_moved(reflowSummaryX, reflowSummaryY);
+    const auto restore = reflowCollector.rows.front().restoreBounds;
+    const auto restoreX = (restore.left + restore.right) * 0.5F;
+    const auto restoreY = (restore.top + restore.bottom) * 0.5F;
+    (void)analyzer.pointer_moved(restoreX, restoreY);
+    if (analyzer.hovered_review_restore_node() != std::optional{folder}) {
+        DestroyWindow(window);
+        return 86;
+    }
+    analyzer.pointer_down(restoreX, restoreY);
+    analyzer.pointer_released(restoreX, restoreY);
+    const auto restoreCommand = analyzer.take_command();
+    if (!restoreCommand.has_value()
+        || restoreCommand->kind != diskbloom::app::AnalyzerCommandKind::RestoreReviewItem
+        || restoreCommand->node != folder) {
+        DestroyWindow(window);
+        return 87;
+    }
+    exclusion.clear();
+    if (!analyzer.reflow_review_change(
+            &exclusion,
+            std::span<const diskbloom::core::NodeIndex>{},
+            root,
+            reflowStart + std::chrono::milliseconds{250},
+            true)
+        || !analyzer.transition_active()
+        || !analyzer.advance_transition(reflowStart + std::chrono::milliseconds{750})
+        || analyzer.transition_active()) {
+        DestroyWindow(window);
+        return 88;
     }
 
     DestroyWindow(window);
