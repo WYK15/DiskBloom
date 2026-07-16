@@ -17,6 +17,7 @@ add_executable(
     graphics_capture_tests.cpp
     node_path_tests.cpp
     scan_session_tests.cpp
+    scan_tree_exclusion_tests.cpp
     scan_tree_tests.cpp
     scan_ui_state_tests.cpp
     settings_store_tests.cpp

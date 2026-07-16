@@ -27,6 +27,7 @@ add_library(
         core/child_ranking.cpp
         core/node_path.cpp
         core/scan_tree.cpp
+        core/scan_tree_exclusion.cpp
         core/string_catalog.cpp
         core/sunburst_layout.cpp
         core/sunburst_transition.cpp
