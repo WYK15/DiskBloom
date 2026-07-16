@@ -1,15 +1,23 @@
 #include "test_support.h"
 
 #include "app/analyzer_navigation.h"
+#include "core/scan_tree_exclusion.h"
+
+#include <array>
 
 using diskbloom::app::AnalyzerCommand;
 using diskbloom::app::AnalyzerCommandKind;
 using diskbloom::app::AnalyzerNavigationState;
 using diskbloom::app::MainContentView;
 using diskbloom::app::apply_analyzer_command;
+using diskbloom::app::nearest_visible_directory;
+using diskbloom::app::navigation_can_back;
+using diskbloom::app::navigation_can_forward;
 using diskbloom::app::open_analyzer;
+using diskbloom::app::reconcile_analyzer_visibility;
 using diskbloom::core::ScanNodeFlags;
 using diskbloom::core::ScanTree;
+using diskbloom::core::ScanTreeExclusion;
 
 namespace {
 
@@ -214,4 +222,95 @@ TEST_CASE(analyzer_navigation_new_scan_replaces_old_history) {
         {AnalyzerCommandKind::NavigateBack, diskbloom::core::invalid_node}));
     CHECK(state.view == MainContentView::Overview);
     CHECK(!state.history.can_back());
+}
+
+TEST_CASE(analyzer_navigation_reconciles_hidden_root_to_visible_parent) {
+    NavigationFixture fixture;
+    AnalyzerNavigationState state;
+    (void)open_analyzer(state, fixture.tree, fixture.root);
+    (void)apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateToNode, fixture.folder});
+    ScanTreeExclusion exclusion;
+    const std::array requested{fixture.folder};
+    exclusion.rebuild(fixture.tree, requested);
+
+    CHECK(nearest_visible_directory(fixture.tree, exclusion, fixture.folder) == fixture.root);
+    CHECK(reconcile_analyzer_visibility(state, fixture.tree, exclusion));
+    CHECK(state.root == fixture.root);
+    CHECK(state.selected == fixture.root);
+    CHECK(state.history.current()->node == fixture.folder);
+}
+
+TEST_CASE(analyzer_navigation_reconciles_hidden_selection_to_visible_directory) {
+    NavigationFixture fixture;
+    AnalyzerNavigationState state;
+    (void)open_analyzer(state, fixture.tree, fixture.folder);
+    (void)apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::SelectNode, fixture.file});
+    ScanTreeExclusion exclusion;
+    const std::array requested{fixture.file};
+    exclusion.rebuild(fixture.tree, requested);
+
+    CHECK(reconcile_analyzer_visibility(state, fixture.tree, exclusion));
+    CHECK(state.root == fixture.folder);
+    CHECK(state.selected == fixture.folder);
+}
+
+TEST_CASE(analyzer_navigation_skips_hidden_history_and_reaches_it_after_restore) {
+    NavigationFixture fixture;
+    AnalyzerNavigationState state;
+    (void)open_analyzer(state, fixture.tree, fixture.root);
+    (void)apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateToNode, fixture.folder});
+    ScanTreeExclusion exclusion;
+    const std::array requested{fixture.folder};
+    exclusion.rebuild(fixture.tree, requested);
+    (void)reconcile_analyzer_visibility(state, fixture.tree, exclusion);
+
+    CHECK(navigation_can_back(state, fixture.tree, &exclusion));
+    CHECK(!navigation_can_forward(state, fixture.tree, &exclusion));
+    CHECK(apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateBack},
+        &exclusion));
+    CHECK(state.root == fixture.root);
+    CHECK(!navigation_can_forward(state, fixture.tree, &exclusion));
+
+    exclusion.clear();
+    CHECK(navigation_can_forward(state, fixture.tree, &exclusion));
+    CHECK(apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateForward},
+        &exclusion));
+    CHECK(state.root == fixture.folder);
+}
+
+TEST_CASE(analyzer_navigation_rejects_hidden_direct_destinations) {
+    NavigationFixture fixture;
+    AnalyzerNavigationState state;
+    (void)open_analyzer(state, fixture.tree, fixture.root);
+    ScanTreeExclusion exclusion;
+    const std::array requested{fixture.folder};
+    exclusion.rebuild(fixture.tree, requested);
+
+    CHECK(!apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::NavigateBreadcrumb, fixture.folder},
+        &exclusion));
+    CHECK(!apply_analyzer_command(
+        state,
+        fixture.tree,
+        {AnalyzerCommandKind::SelectNode, fixture.file},
+        &exclusion));
+    CHECK(state.root == fixture.root);
+    CHECK(state.selected == fixture.root);
 }

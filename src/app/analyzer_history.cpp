@@ -62,4 +62,12 @@ bool AnalyzerHistory::can_forward() const noexcept {
     return !entries_.empty() && cursor_ + 1U < entries_.size();
 }
 
+std::span<const NavigationEntry> AnalyzerHistory::entries() const noexcept {
+    return entries_;
+}
+
+std::size_t AnalyzerHistory::cursor() const noexcept {
+    return cursor_;
+}
+
 } // namespace diskbloom::app

@@ -61,3 +61,19 @@ TEST_CASE(analyzer_history_can_store_overview_entries) {
     CHECK((history.back() == NavigationEntry{MainContentView::Analyzer, 4U}));
     CHECK((history.forward() == NavigationEntry{MainContentView::Overview, invalid_node}));
 }
+
+TEST_CASE(analyzer_history_exposes_entries_without_changing_cursor) {
+    AnalyzerHistory history;
+    history.reset({MainContentView::Overview, invalid_node});
+    (void)history.record({MainContentView::Analyzer, 0U});
+    (void)history.record({MainContentView::Analyzer, 1U});
+    (void)history.back();
+
+    const auto entries = history.entries();
+    CHECK(entries.size() == 3U);
+    CHECK((entries[0] == NavigationEntry{MainContentView::Overview, invalid_node}));
+    CHECK((entries[1] == NavigationEntry{MainContentView::Analyzer, 0U}));
+    CHECK((entries[2] == NavigationEntry{MainContentView::Analyzer, 1U}));
+    CHECK(history.cursor() == 1U);
+    CHECK((history.current() == entries[history.cursor()]));
+}

@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace diskbloom::app {
@@ -31,6 +32,8 @@ public:
     [[nodiscard]] std::optional<NavigationEntry> current() const noexcept;
     [[nodiscard]] bool can_back() const noexcept;
     [[nodiscard]] bool can_forward() const noexcept;
+    [[nodiscard]] std::span<const NavigationEntry> entries() const noexcept;
+    [[nodiscard]] std::size_t cursor() const noexcept;
 
 private:
     std::vector<NavigationEntry> entries_;
