@@ -1,7 +1,7 @@
 # Review Exclusion And Restore Design
 
 Date: 2026-07-16
-Status: Pending written review
+Status: Approved for planning
 References:
 
 - `feedback/PixPin_2026-07-16_09-30-14.png`
