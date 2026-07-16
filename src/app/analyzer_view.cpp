@@ -8,6 +8,7 @@
 #include <array>
 #include <cmath>
 #include <cwchar>
+#include <limits>
 #include <string>
 #include <utility>
 
@@ -19,6 +20,22 @@ namespace {
 
 constexpr std::size_t palette_size = 12U;
 constexpr float radial_gap = 1.5F;
+
+[[nodiscard]] std::uint64_t projected_root_bytes(
+    const core::SunburstLayout& layout) noexcept {
+    std::uint64_t total = 0U;
+    for (const auto& segment : layout.segments) {
+        if (segment.depth != 0U) {
+            continue;
+        }
+        const auto maximum = std::numeric_limits<std::uint64_t>::max();
+        if (segment.logicalSize > maximum - total) {
+            return maximum;
+        }
+        total += segment.logicalSize;
+    }
+    return total;
+}
 
 bool contains(const AnalyzerRectF& bounds, const float x, const float y) noexcept {
     return x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom;
@@ -478,9 +495,7 @@ bool AnalyzerView::navigate_to_root(
     }
 
     transitionSourceRoot_ = root_;
-    transitionSourceRootBytes_ = exclusion_ != nullptr
-        ? exclusion_->effective_size(*tree_, root_)
-        : tree_->node(root_).logicalSize;
+    transitionSourceRootBytes_ = projected_root_bytes(sunburst_);
     transitionSourceRankedChildren_ = rankedChildren_;
     transitionSourcePaletteIndices_ = childPaletteIndices_;
     transitionSourceChildListLayout_ = compute_analyzer_child_list_layout(
@@ -572,9 +587,7 @@ bool AnalyzerView::reflow_review_change(
         ? std::optional{core::snapshot_transition_frame(transitionFrame_)}
         : std::nullopt;
     transitionSourceRoot_ = root_;
-    transitionSourceRootBytes_ = exclusion_ != nullptr
-        ? exclusion_->effective_size(*tree_, root_)
-        : tree_->node(root_).logicalSize;
+    transitionSourceRootBytes_ = projected_root_bytes(sunburst_);
     transitionSourceRankedChildren_ = rankedChildren_;
     transitionSourcePaletteIndices_ = childPaletteIndices_;
     transitionSourceChildListLayout_ = compute_analyzer_child_list_layout(

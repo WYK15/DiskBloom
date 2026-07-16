@@ -166,9 +166,11 @@ COLORREF to_color_ref(const core::Rgba color) noexcept {
 }
 
 void MainWindow::sync_analyzer_navigation_chrome() {
-    analyzer_.set_history_availability(
-        navigation_.history.can_back(),
-        navigation_.history.can_forward());
+    const auto canBack = completedScan_.has_value()
+        && navigation_can_back(navigation_, completedScan_->tree, &reviewExclusion_);
+    const auto canForward = completedScan_.has_value()
+        && navigation_can_forward(navigation_, completedScan_->tree, &reviewExclusion_);
+    analyzer_.set_history_availability(canBack, canForward);
     if (!completedScan_.has_value() || navigation_.view != MainContentView::Analyzer) {
         analyzer_.set_breadcrumb({});
         hide_breadcrumb_tooltip();
@@ -180,6 +182,45 @@ void MainWindow::sync_analyzer_navigation_chrome() {
         navigation_.root,
         completedScan_->rootPath));
     hide_breadcrumb_tooltip();
+}
+
+void MainWindow::apply_review_change(
+    const ReviewMutation mutation,
+    const std::chrono::steady_clock::time_point now) {
+    if (!completedScan_.has_value()) {
+        return;
+    }
+    auto result = apply_review_mutation(
+        deletionReview_,
+        completedScan_->tree,
+        mutation,
+        navigation_.root,
+        navigation_.selected);
+    if (!result.changed) {
+        return;
+    }
+
+    reviewExclusion_ = std::move(result.exclusion);
+    navigation_.root = result.root;
+    navigation_.selected = result.selected;
+    analyzer_.set_review_summary(
+        deletionReview_.nodes().size(),
+        deletionReview_.total_bytes());
+    (void)analyzer_.reflow_review_change(
+        &reviewExclusion_,
+        deletionReview_.nodes(),
+        result.root,
+        now,
+        directory_transitions_enabled());
+    analyzer_.set_selected_node(result.selected);
+    sync_analyzer_navigation_chrome();
+    if (analyzer_.transition_active()) {
+        SetTimer(window_, animation_timer_id, animation_timer_interval_ms, nullptr);
+    } else {
+        KillTimer(window_, animation_timer_id);
+    }
+    sync_analyzer_hover_timer();
+    InvalidateRect(window_, nullptr, FALSE);
 }
 
 bool MainWindow::create_breadcrumb_tooltip() {
@@ -229,12 +270,15 @@ void MainWindow::update_breadcrumb_tooltip() {
     if (breadcrumbTooltip_ == nullptr || navigation_.view != MainContentView::Analyzer) {
         return;
     }
+    const auto restoreNode = analyzer_.hovered_review_restore_node();
     const auto path = analyzer_.hovered_breadcrumb_path();
-    if (path.empty()) {
+    if (!restoreNode.has_value() && path.empty()) {
         hide_breadcrumb_tooltip();
         return;
     }
-    breadcrumbTooltipText_.assign(path);
+    breadcrumbTooltipText_ = restoreNode.has_value()
+        ? std::wstring(core::get_string(appearance_.language, core::StringId::RestoreItem))
+        : std::wstring(path);
     TOOLINFOW tool{
         .cbSize = sizeof(TOOLINFOW),
         .uFlags = TTF_TRACK | TTF_ABSOLUTE,
@@ -368,14 +412,14 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
         return;
     }
     case AnalyzerCommandKind::AddToReview:
-        if (completedScan_.has_value()
-            && deletionReview_.add(completedScan_->tree, command.node)) {
-            analyzer_.set_review_summary(
-                deletionReview_.nodes().size(),
-                deletionReview_.total_bytes());
-            analyzer_.set_review_nodes(deletionReview_.nodes());
-            InvalidateRect(window_, nullptr, FALSE);
-        }
+        apply_review_change(
+            {ReviewMutationKind::Add, command.node},
+            std::chrono::steady_clock::now());
+        return;
+    case AnalyzerCommandKind::RestoreReviewItem:
+        apply_review_change(
+            {ReviewMutationKind::Restore, command.node},
+            std::chrono::steady_clock::now());
         return;
     case AnalyzerCommandKind::ConfirmReview:
         confirm_review_deletion();
@@ -398,7 +442,8 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
     const auto previousRoot = navigation_.root;
     const auto previousSelected = navigation_.selected;
     const auto previousView = navigation_.view;
-    if (!apply_analyzer_command(navigation_, completedScan_->tree, command)) {
+    if (!apply_analyzer_command(
+            navigation_, completedScan_->tree, command, &reviewExclusion_)) {
         return;
     }
     if (navigation_.view == MainContentView::Analyzer) {
@@ -521,6 +566,7 @@ void MainWindow::finish_recycle_success() {
         analyzer_.drag_pending(),
         GetCapture() == window_));
     deletionReview_.clear();
+    reviewExclusion_.clear();
     analyzer_.set_review_summary(0U, 0U);
     analyzer_.set_review_nodes(deletionReview_.nodes());
     analyzer_.set_tree(nullptr, core::invalid_node);
@@ -648,6 +694,7 @@ void MainWindow::handle_folder_scan() {
 void MainWindow::start_scan(std::wstring rootPath) {
     scanSession_ = std::make_unique<scan::ScanSession>();
     deletionReview_.clear();
+    reviewExclusion_.clear();
     analyzer_.set_review_summary(0U, 0U);
     analyzer_.set_review_nodes(deletionReview_.nodes());
     try {
@@ -688,11 +735,13 @@ void MainWindow::poll_scan_session() {
             completedScan_ = std::move(*result);
             completedScanTarget_ = terminalTarget;
             deletionReview_.clear();
+            reviewExclusion_.clear();
             analyzer_.set_review_summary(0U, 0U);
             analyzer_.set_review_nodes(deletionReview_.nodes());
             if (!completedScan_->tree.nodes().empty()
                 && open_analyzer(navigation_, completedScan_->tree, 0U)) {
                 analyzer_.set_tree(&completedScan_->tree, 0U);
+                analyzer_.set_exclusion(&reviewExclusion_);
                 sync_analyzer_navigation_chrome();
             }
         }
@@ -943,6 +992,7 @@ LRESULT MainWindow::handle_message(
             }
             if (!analyzer_.transition_active()) {
                 KillTimer(window_, animation_timer_id);
+                update_breadcrumb_tooltip();
             }
             return 0;
         }

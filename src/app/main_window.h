@@ -7,6 +7,7 @@
 #include "app/disk_overview.h"
 #include "app/deletion_review.h"
 #include "app/recycle_session.h"
+#include "app/review_change.h"
 #include "app/scan_ui_state.h"
 #include "core/language.h"
 #include "core/theme.h"
@@ -15,6 +16,7 @@
 
 #include <Windows.h>
 
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
@@ -35,6 +37,9 @@ private:
     [[nodiscard]] bool render_frame();
     void handle_overview_command(const OverviewCommand& command);
     void handle_analyzer_command(const AnalyzerCommand& command);
+    void apply_review_change(
+        ReviewMutation mutation,
+        std::chrono::steady_clock::time_point now);
     void dispatch_analyzer_command();
     [[nodiscard]] bool apply_analyzer_input_actions(const AnalyzerInputActions& actions);
     void confirm_review_deletion();
@@ -70,6 +75,7 @@ private:
     AnalyzerView analyzer_;
     AnalyzerNavigationState navigation_;
     DeletionReview deletionReview_;
+    core::ScanTreeExclusion reviewExclusion_;
     std::vector<platform::windows::VolumeSnapshot> volumes_;
     ScanUiModel scanUi_;
     std::unique_ptr<scan::ScanSession> scanSession_;

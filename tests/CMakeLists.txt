@@ -24,6 +24,7 @@ add_executable(
     recycle_bin_tests.cpp
     recycle_session_tests.cpp
     review_collector_interaction_tests.cpp
+    review_change_tests.cpp
     shell_actions_tests.cpp
     string_catalog_tests.cpp
     sunburst_layout_tests.cpp
