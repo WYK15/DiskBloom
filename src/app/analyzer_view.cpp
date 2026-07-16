@@ -263,6 +263,30 @@ AnalyzerHitTarget hit_test_analyzer_layout(
         : AnalyzerHitTarget::None;
 }
 
+bool is_analyzer_header_interactive_point(
+    const AnalyzerLayout& layout,
+    const AnalyzerBreadcrumbLayout& breadcrumb,
+    const float xDip,
+    const float yDip) noexcept {
+    for (const auto& bounds : {
+             layout.backButton,
+             layout.forwardButton,
+             layout.minimizeButton,
+             layout.maximizeButton,
+             layout.closeButton}) {
+        if (contains(bounds, xDip, yDip)) {
+            return true;
+        }
+    }
+    for (const auto& segment : breadcrumb.visible) {
+        if (contains(segment.bounds, xDip, yDip)) {
+            return true;
+        }
+    }
+    return breadcrumb.ellipsis.has_value()
+        && contains(breadcrumb.ellipsis->bounds, xDip, yDip);
+}
+
 AnalyzerChildListLayout compute_analyzer_child_list_layout(
     const AnalyzerRectF& detailsBounds,
     const std::size_t itemCount,
@@ -506,6 +530,13 @@ bool AnalyzerView::hover_pulse_active() const noexcept {
 bool AnalyzerView::hover_pulse_timer_required() const noexcept {
     return hoverPulse_.timer_required(hoverAnimationsEnabled_)
         && !transitionController_.active();
+}
+
+bool AnalyzerView::header_point_is_interactive(
+    const float xDip,
+    const float yDip) const noexcept {
+    return is_analyzer_header_interactive_point(
+        layout_, breadcrumbLayout_, xDip, yDip);
 }
 
 void AnalyzerView::cancel_transition() noexcept {

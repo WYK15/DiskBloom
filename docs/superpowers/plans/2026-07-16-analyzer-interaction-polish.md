@@ -272,7 +272,7 @@ git commit -m "feat: add empty collector drag hint"
 - Consumes: current `AnalyzerLayout`, actual visible `AnalyzerBreadcrumbLayout`, and pointer DIPs.
 - Produces: `is_analyzer_header_interactive_point` plus an `AnalyzerView` forwarding query used by `WM_NCHITTEST`.
 
-- [ ] **Step 1: Write failing pure hit-test coverage**
+- [x] **Step 1: Write failing pure hit-test coverage**
 
 Use a compact breadcrumb layout and assert:
 
@@ -286,11 +286,11 @@ CHECK(!is_analyzer_header_interactive_point(layout, breadcrumb, unusedX, unusedY
 
 Also cover forward and three window buttons, half-open edges, and wide/compact breadcrumb layouts.
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 Expected: compilation fails because the pure header hit-test function is missing.
 
-- [ ] **Step 3: Implement client-control priority**
+- [x] **Step 3: Implement client-control priority**
 
 Add:
 
@@ -304,11 +304,11 @@ Add:
 
 Return true only for back/forward, visible breadcrumb segments, ellipsis, and three window-button rectangles. Expose `AnalyzerView::header_point_is_interactive` to query the current layouts.
 
-- [ ] **Step 4: Route WM_NCHITTEST through actual geometry**
+- [x] **Step 4: Route WM_NCHITTEST through actual geometry**
 
 Keep border/resize handling first. Within the caption band and left of window controls, return `HTCLIENT` only when the analyzer forwarding query is true; otherwise return `HTCAPTION`. Preserve existing overview behavior and native double-click maximize.
 
-- [ ] **Step 5: Run focused and full tests, then commit**
+- [x] **Step 5: Run focused and full tests, then commit**
 
 ```powershell
 git add src/app/analyzer_view.h src/app/analyzer_view.cpp src/app/main_window.cpp tests/analyzer_breadcrumb_tests.cpp tests/analyzer_layout_tests.cpp

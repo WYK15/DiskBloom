@@ -7,10 +7,13 @@
 #include <array>
 
 using diskbloom::app::AnalyzerHitTarget;
+using diskbloom::app::AnalyzerBreadcrumbLayout;
+using diskbloom::app::BreadcrumbSegmentLayout;
 using diskbloom::app::AnalyzerRectF;
 using diskbloom::app::compute_analyzer_layout;
 using diskbloom::app::compute_review_collector_layout;
 using diskbloom::app::hit_test_analyzer_layout;
+using diskbloom::app::is_analyzer_header_interactive_point;
 
 namespace {
 
@@ -128,4 +131,38 @@ TEST_CASE(analyzer_hit_test_distinguishes_back_chart_and_empty_space) {
               layout.reviewButton.left + 4.0F,
               layout.reviewButton.top + 4.0F)
         == AnalyzerHitTarget::ReviewDelete);
+}
+
+TEST_CASE(analyzer_header_hit_test_keeps_controls_client_and_exposes_gaps) {
+    const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 6U);
+    AnalyzerBreadcrumbLayout breadcrumb;
+    breadcrumb.visible = {
+        BreadcrumbSegmentLayout{{120.0F, 8.0F, 210.0F, 56.0F}, 0U},
+        BreadcrumbSegmentLayout{{260.0F, 8.0F, 350.0F, 56.0F}, 2U},
+    };
+    breadcrumb.ellipsis = BreadcrumbSegmentLayout{{220.0F, 8.0F, 250.0F, 56.0F}, 1U};
+
+    const auto center = [](const AnalyzerRectF& bounds) {
+        return std::array{
+            (bounds.left + bounds.right) * 0.5F,
+            (bounds.top + bounds.bottom) * 0.5F};
+    };
+    for (const auto& bounds : {
+             layout.backButton,
+             layout.forwardButton,
+             layout.minimizeButton,
+             layout.maximizeButton,
+             layout.closeButton,
+             breadcrumb.visible[0].bounds,
+             breadcrumb.visible[1].bounds,
+             breadcrumb.ellipsis->bounds}) {
+        const auto point = center(bounds);
+        CHECK(is_analyzer_header_interactive_point(
+            layout, breadcrumb, point[0], point[1]));
+    }
+
+    CHECK(!is_analyzer_header_interactive_point(layout, breadcrumb, 215.0F, 32.0F));
+    CHECK(!is_analyzer_header_interactive_point(layout, breadcrumb, 255.0F, 32.0F));
+    CHECK(!is_analyzer_header_interactive_point(layout, breadcrumb, 500.0F, 32.0F));
+    CHECK(!is_analyzer_header_interactive_point(layout, breadcrumb, 120.0F, 56.0F));
 }

@@ -991,8 +991,7 @@ LRESULT MainWindow::handle_message(
         const auto y = pixels_to_dip(client_point.y);
         const auto width = pixels_to_dip(client.right - client.left);
         const auto analyzerHeaderControl = navigation_.view == MainContentView::Analyzer
-            && (x < 104.0F
-                || (x >= 108.0F && x < width - 150.0F && y >= 8.0F && y < 56.0F));
+            && analyzer_.header_point_is_interactive(x, y);
         if (y < 76.0F && x < width - 138.0F && !analyzerHeaderControl) {
             return HTCAPTION;
         }

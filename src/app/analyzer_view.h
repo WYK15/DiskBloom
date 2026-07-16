@@ -97,6 +97,12 @@ enum class AnalyzerHitTarget {
     float xDip,
     float yDip) noexcept;
 
+[[nodiscard]] bool is_analyzer_header_interactive_point(
+    const AnalyzerLayout& layout,
+    const AnalyzerBreadcrumbLayout& breadcrumb,
+    float xDip,
+    float yDip) noexcept;
+
 enum class AnalyzerCommandKind {
     ReturnToOverview,
     NavigateBack,
@@ -141,6 +147,7 @@ public:
     void set_hover_animations_enabled(bool enabled) noexcept;
     [[nodiscard]] bool hover_pulse_active() const noexcept;
     [[nodiscard]] bool hover_pulse_timer_required() const noexcept;
+    [[nodiscard]] bool header_point_is_interactive(float xDip, float yDip) const noexcept;
     void set_breadcrumb(AnalyzerBreadcrumbModel model);
     void set_history_availability(bool canBack, bool canForward) noexcept;
     [[nodiscard]] std::wstring_view hovered_breadcrumb_path() const noexcept;
