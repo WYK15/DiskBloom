@@ -285,6 +285,26 @@ int main(const int argc, char** argv) {
     const auto collectorX = (dropCollector.left + dropCollector.right) * 0.5F;
     const auto collectorY = (dropCollector.top + dropCollector.bottom) * 0.5F;
 
+    analyzer.set_hover_animations_enabled(true);
+    if (!analyzer.pointer_moved(childRowX, childRowY)
+        || !analyzer.hover_pulse_active()
+        || !analyzer.hover_pulse_timer_required()) {
+        DestroyWindow(window);
+        return 80;
+    }
+    analyzer.set_hover_animations_enabled(false);
+    if (!analyzer.hover_pulse_active()
+        || analyzer.hover_pulse_timer_required()
+        || !drawAnalyzer(lightTheme, diskbloom::core::Language::English)) {
+        DestroyWindow(window);
+        return 81;
+    }
+    if (!analyzer.pointer_left() || analyzer.hover_pulse_active()) {
+        DestroyWindow(window);
+        return 82;
+    }
+    analyzer.set_hover_animations_enabled(true);
+
     analyzer.pointer_down(childRowX, childRowY);
     if (!analyzer.drag_pending() || analyzer.drag_active()
         || analyzer.take_command().has_value()) {

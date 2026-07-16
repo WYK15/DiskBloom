@@ -27,6 +27,7 @@ constexpr wchar_t window_class_name[] = L"DiskBloom.MainWindow";
 constexpr UINT_PTR scan_timer_id = 1U;
 constexpr UINT_PTR recycle_timer_id = 2U;
 constexpr UINT_PTR animation_timer_id = 3U;
+constexpr UINT_PTR hover_pulse_timer_id = 4U;
 constexpr UINT scan_timer_interval_ms = 33U;
 constexpr UINT animation_timer_interval_ms = 16U;
 
@@ -431,6 +432,7 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
         || command.kind == AnalyzerCommandKind::NavigateForward) {
         sync_analyzer_navigation_chrome();
     }
+    sync_analyzer_hover_timer();
     InvalidateRect(window_, nullptr, FALSE);
 }
 
@@ -859,12 +861,30 @@ void MainWindow::apply_directory_transition_policy_change() {
         appearance_.directoryTransitions,
         platform::windows::client_area_animations_enabled(),
         analyzer_.transition_active());
+    analyzer_.set_hover_animations_enabled(policy.animationsEnabled);
+    sync_analyzer_hover_timer();
     if (!policy.completeActiveTransition) {
         return;
     }
     analyzer_.cancel_transition();
     KillTimer(window_, animation_timer_id);
     InvalidateRect(window_, nullptr, FALSE);
+}
+
+void MainWindow::sync_analyzer_hover_timer() {
+    if (window_ != nullptr
+        && navigation_.view == MainContentView::Analyzer
+        && analyzer_.hover_pulse_timer_required()) {
+        SetTimer(
+            window_,
+            hover_pulse_timer_id,
+            animation_timer_interval_ms,
+            nullptr);
+        return;
+    }
+    if (window_ != nullptr) {
+        KillTimer(window_, hover_pulse_timer_id);
+    }
 }
 
 bool MainWindow::dark_theme_enabled() const noexcept {
@@ -905,6 +925,7 @@ LRESULT MainWindow::handle_message(
         reset_scan_ui(scanUi_, volumes_.size());
         overview_.set_scan_statuses(scanUi_.volumes, scanUi_.folder);
         apply_appearance();
+        analyzer_.set_hover_animations_enabled(directory_transitions_enabled());
         return 0;
 
     case WM_TIMER:
@@ -922,6 +943,14 @@ LRESULT MainWindow::handle_message(
             }
             if (!analyzer_.transition_active()) {
                 KillTimer(window_, animation_timer_id);
+            }
+            return 0;
+        }
+        if (wParam == hover_pulse_timer_id) {
+            if (analyzer_.hover_pulse_timer_required()) {
+                InvalidateRect(window_, nullptr, FALSE);
+            } else {
+                KillTimer(window_, hover_pulse_timer_id);
             }
             return 0;
         }
@@ -976,6 +1005,7 @@ LRESULT MainWindow::handle_message(
                 analyzer_.cancel_transition();
                 KillTimer(window_, animation_timer_id);
             }
+            sync_analyzer_hover_timer();
             const auto resized = graphics_.resize(
                 static_cast<std::uint32_t>(LOWORD(lParam)),
                 static_cast<std::uint32_t>(HIWORD(lParam)));
@@ -1018,6 +1048,7 @@ LRESULT MainWindow::handle_message(
         if (changed) {
             InvalidateRect(window_, nullptr, FALSE);
         }
+        sync_analyzer_hover_timer();
         update_breadcrumb_tooltip();
         return 0;
     }
@@ -1036,6 +1067,7 @@ LRESULT MainWindow::handle_message(
         if (changed) {
             InvalidateRect(window_, nullptr, FALSE);
         }
+        sync_analyzer_hover_timer();
         hide_breadcrumb_tooltip();
         return 0;
     }
@@ -1135,6 +1167,7 @@ LRESULT MainWindow::handle_message(
         KillTimer(window_, scan_timer_id);
         KillTimer(window_, recycle_timer_id);
         KillTimer(window_, animation_timer_id);
+        KillTimer(window_, hover_pulse_timer_id);
         scanSession_.reset();
         recycleSession_.reset();
         if (breadcrumbTooltip_ != nullptr) {

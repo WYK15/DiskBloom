@@ -146,7 +146,7 @@ git commit -m "feat: model analyzer hover pulse"
 - Consumes: Task 1 pulse target, branch interval, current layout geometry, theme `primaryText`, and effective animation policy.
 - Produces: cached overlay geometry, `hover_pulse_timer_required`, and one synchronized Win32 timer.
 
-- [ ] **Step 1: Add failing lifecycle assertions to analyzer render smoke**
+- [x] **Step 1: Add failing lifecycle assertions to analyzer render smoke**
 
 After laying out the analyzer, move the pointer to a visible ranked row and assert:
 
@@ -163,11 +163,11 @@ CHECK(!analyzer.hover_pulse_active());
 
 Capture two enabled pulse phases and one disabled static-highlight frame in dark/en-US and light/zh-CN.
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 Expected: analyzer smoke compilation fails because the hover-pulse view APIs are missing.
 
-- [ ] **Step 3: Integrate state and cached Direct2D geometry**
+- [x] **Step 3: Integrate state and cached Direct2D geometry**
 
 Add to `AnalyzerView`:
 
@@ -179,7 +179,7 @@ void set_hover_animations_enabled(bool enabled) noexcept;
 
 When `hoveredChild_` changes, map its ranked child to `NodeIndex`, restart the pulse with `steady_clock::now`, and invalidate one cached `ID2D1PathGeometry`. `ensure_hover_pulse_geometry` finds the depth-zero branch and appends only contained segments with existing `append_annular_segment`. Theme resource construction creates one pulse brush from `theme.primaryText`. During static chart rendering, draw the cached overlay after palette batches and before the center disk, using the controller opacity. Clear pulse state on root/tree changes, transitions, pointer leave, review-panel takeover, and recycling.
 
-- [ ] **Step 4: Own timer lifecycle in MainWindow**
+- [x] **Step 4: Own timer lifecycle in MainWindow**
 
 Add `hover_pulse_timer_id = 4`, reuse the 16 ms interval, and implement `sync_analyzer_hover_timer()`:
 
@@ -194,7 +194,7 @@ if (navigation_.view == MainContentView::Analyzer
 
 Call it after analyzer pointer moves/leaves, navigation changes, settings policy changes, resize/transition cancellation, and content changes. The timer only invalidates while required. Kill it on `WM_DESTROY`.
 
-- [ ] **Step 5: Run analyzer smoke and full Debug suite**
+- [x] **Step 5: Run analyzer smoke and full Debug suite**
 
 Run:
 
@@ -205,7 +205,7 @@ ctest --test-dir build/windows-debug -C Debug --output-on-failure
 
 Expected: all existing tests plus the new hover lifecycle/capture assertions pass.
 
-- [ ] **Step 6: Commit rendering and timer integration**
+- [x] **Step 6: Commit rendering and timer integration**
 
 ```powershell
 git add src/app/analyzer_view.h src/app/analyzer_view.cpp src/app/main_window.h src/app/main_window.cpp tests/analyzer_render_smoke_main.cpp

@@ -2,6 +2,7 @@
 
 #include "app/analyzer_breadcrumb.h"
 #include "app/analyzer_geometry.h"
+#include "app/analyzer_hover_pulse.h"
 #include "app/analyzer_transition_controller.h"
 #include "app/review_collector_interaction.h"
 #include "core/language.h"
@@ -137,6 +138,9 @@ public:
         std::chrono::steady_clock::time_point now) noexcept;
     [[nodiscard]] bool transition_active() const noexcept;
     void cancel_transition() noexcept;
+    void set_hover_animations_enabled(bool enabled) noexcept;
+    [[nodiscard]] bool hover_pulse_active() const noexcept;
+    [[nodiscard]] bool hover_pulse_timer_required() const noexcept;
     void set_breadcrumb(AnalyzerBreadcrumbModel model);
     void set_history_availability(bool canBack, bool canForward) noexcept;
     [[nodiscard]] std::wstring_view hovered_breadcrumb_path() const noexcept;
@@ -175,6 +179,7 @@ private:
         const core::ThemeTokens& theme,
         core::Language language);
     [[nodiscard]] bool ensure_geometry();
+    [[nodiscard]] bool ensure_hover_pulse_geometry();
     [[nodiscard]] bool ensure_transition_geometry();
     [[nodiscard]] bool ensure_breadcrumb_layout(
         render::GraphicsDevice& graphics,
@@ -189,6 +194,8 @@ private:
     core::SunburstTransitionPlan transitionPlan_;
     core::SunburstTransitionFrame transitionFrame_;
     AnalyzerTransitionController transitionController_;
+    AnalyzerHoverPulse hoverPulse_;
+    bool hoverAnimationsEnabled_ = true;
     float transitionCenterX_ = 0.0F;
     float transitionCenterY_ = 0.0F;
     core::SunburstGeometry transitionTargetGeometry_{};

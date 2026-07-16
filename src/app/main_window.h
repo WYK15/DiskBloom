@@ -51,6 +51,7 @@ private:
     void show_settings_menu();
     void apply_appearance();
     void apply_directory_transition_policy_change();
+    void sync_analyzer_hover_timer();
     [[nodiscard]] bool dark_theme_enabled() const noexcept;
     [[nodiscard]] bool directory_transitions_enabled() const noexcept;
     [[nodiscard]] float pixels_to_dip(int pixels) const noexcept;

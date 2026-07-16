@@ -333,6 +333,7 @@ struct AnalyzerView::Resources {
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> accent;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> border;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> danger;
+    Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> hoverPulse;
     std::array<Microsoft::WRL::ComPtr<ID2D1SolidColorBrush>, palette_size> palette;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> titleFormat;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> breadcrumbFormat;
@@ -347,10 +348,13 @@ struct AnalyzerView::Resources {
     std::array<Microsoft::WRL::ComPtr<ID2D1PathGeometry>, palette_size> batches;
     std::array<Microsoft::WRL::ComPtr<ID2D1PathGeometry>, palette_size> transitionSourceBatches;
     std::array<Microsoft::WRL::ComPtr<ID2D1PathGeometry>, palette_size> transitionDestinationBatches;
+    Microsoft::WRL::ComPtr<ID2D1PathGeometry> hoverPulseGeometry;
     std::size_t geometryRevision = 0U;
     core::SunburstGeometry geometry{};
     bool geometryValid = false;
     bool transitionGeometryValid = false;
+    core::NodeIndex hoverPulseNode = core::invalid_node;
+    core::SunburstGeometry hoverPulseChartGeometry{};
 };
 
 AnalyzerView::AnalyzerView() = default;
@@ -364,6 +368,7 @@ void AnalyzerView::set_tree(const core::ScanTree* tree, const core::NodeIndex ro
     selectedNode_ = root;
     hoveredSegment_.reset();
     hoveredChild_.reset();
+    hoverPulse_.clear();
     pendingCommand_.reset();
     hoveredBreadcrumbItem_.reset();
     pressedBreadcrumbItem_.reset();
@@ -386,6 +391,7 @@ bool AnalyzerView::set_root(const core::NodeIndex root) {
     selectedNode_ = root;
     hoveredSegment_.reset();
     hoveredChild_.reset();
+    hoverPulse_.clear();
     hoveredBreadcrumbItem_.reset();
     pressedBreadcrumbItem_.reset();
     breadcrumbOverflowOpen_ = false;
@@ -444,6 +450,7 @@ bool AnalyzerView::navigate_to_root(
     selectedNode_ = root;
     hoveredSegment_.reset();
     hoveredChild_.reset();
+    hoverPulse_.clear();
     reviewPanelOpen_ = false;
     rebuild_layout();
     transitionFrame_.reserve(transitionPlan_.morphs.size());
@@ -486,6 +493,19 @@ bool AnalyzerView::advance_transition(
 
 bool AnalyzerView::transition_active() const noexcept {
     return transitionController_.active();
+}
+
+void AnalyzerView::set_hover_animations_enabled(const bool enabled) noexcept {
+    hoverAnimationsEnabled_ = enabled;
+}
+
+bool AnalyzerView::hover_pulse_active() const noexcept {
+    return hoverPulse_.has_target();
+}
+
+bool AnalyzerView::hover_pulse_timer_required() const noexcept {
+    return hoverPulse_.timer_required(hoverAnimationsEnabled_)
+        && !transitionController_.active();
 }
 
 void AnalyzerView::cancel_transition() noexcept {
@@ -581,6 +601,8 @@ void AnalyzerView::set_recycle_in_progress(const bool inProgress) noexcept {
         cancel_transition();
         (void)dismiss_breadcrumb_overflow();
         hoveredChrome_ = AnalyzerHitTarget::None;
+        hoveredChild_.reset();
+        hoverPulse_.clear();
         reviewPanelOpen_ = false;
         pendingCommand_.reset();
     }
@@ -647,7 +669,8 @@ bool AnalyzerView::ensure_resources(
         || !makeBrush(theme.buttonHover, resources->hover)
         || !makeBrush(theme.accent, resources->accent)
         || !makeBrush(theme.border, resources->border)
-        || !makeBrush(theme.danger, resources->danger)) {
+        || !makeBrush(theme.danger, resources->danger)
+        || !makeBrush(theme.primaryText, resources->hoverPulse)) {
         return false;
     }
     for (std::size_t index = 0U; index < palette_size; ++index) {
@@ -895,6 +918,50 @@ bool AnalyzerView::ensure_transition_geometry() {
         }
     }
     resources.transitionGeometryValid = true;
+    return true;
+}
+
+bool AnalyzerView::ensure_hover_pulse_geometry() {
+    if (resources_ == nullptr || !hoverPulse_.has_target()) {
+        return false;
+    }
+    auto& resources = *resources_;
+    const auto& geometry = layout_.chartGeometry;
+    if (resources.hoverPulseGeometry != nullptr
+        && resources.hoverPulseNode == hoverPulse_.target()
+        && resources.hoverPulseChartGeometry.centerX == geometry.centerX
+        && resources.hoverPulseChartGeometry.centerY == geometry.centerY
+        && resources.hoverPulseChartGeometry.innerRadius == geometry.innerRadius
+        && resources.hoverPulseChartGeometry.ringWidth == geometry.ringWidth) {
+        return true;
+    }
+    const auto branch = find_hover_branch(sunburst_, hoverPulse_.target());
+    if (!branch.has_value()) {
+        return false;
+    }
+    Microsoft::WRL::ComPtr<ID2D1Factory> factory;
+    resources.context->GetFactory(&factory);
+    if (factory == nullptr
+        || FAILED(factory->CreatePathGeometry(&resources.hoverPulseGeometry))) {
+        return false;
+    }
+    Microsoft::WRL::ComPtr<ID2D1GeometrySink> sink;
+    if (FAILED(resources.hoverPulseGeometry->Open(&sink))) {
+        resources.hoverPulseGeometry.Reset();
+        return false;
+    }
+    sink->SetFillMode(D2D1_FILL_MODE_WINDING);
+    for (const auto& segment : sunburst_.segments) {
+        if (segment_is_in_hover_branch(segment, *branch)) {
+            append_annular_segment(sink.Get(), geometry, segment);
+        }
+    }
+    if (FAILED(sink->Close())) {
+        resources.hoverPulseGeometry.Reset();
+        return false;
+    }
+    resources.hoverPulseNode = hoverPulse_.target();
+    resources.hoverPulseChartGeometry = geometry;
     return true;
 }
 
@@ -1208,6 +1275,15 @@ bool AnalyzerView::draw(
     } else {
         for (std::size_t index = 0U; index < palette_size; ++index) {
             context->FillGeometry(resources_->batches[index].Get(), resources_->palette[index].Get());
+        }
+        if (hoverPulse_.has_target() && ensure_hover_pulse_geometry()) {
+            resources_->hoverPulse->SetOpacity(hoverPulse_.opacity(
+                std::chrono::steady_clock::now(),
+                hoverAnimationsEnabled_));
+            context->FillGeometry(
+                resources_->hoverPulseGeometry.Get(),
+                resources_->hoverPulse.Get());
+            resources_->hoverPulse->SetOpacity(1.0F);
         }
     }
     auto centerRadius = layout_.chartGeometry.innerRadius - radial_gap;
@@ -1528,7 +1604,15 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
     const auto sameSegment = hoveredSegment_.has_value() == nextSegment.has_value()
         && (!hoveredSegment_.has_value()
             || hoveredSegment_->segmentIndex == nextSegment->segmentIndex);
+    auto nextPulseNode = core::invalid_node;
+    if (nextChild.has_value() && *nextChild < rankedChildren_.size()) {
+        const auto node = rankedChildren_[*nextChild].node;
+        if (find_hover_branch(sunburst_, node).has_value()) {
+            nextPulseNode = node;
+        }
+    }
     if (hoveredChrome_ == nextChrome && sameSegment && hoveredChild_ == nextChild
+        && hoverPulse_.target() == nextPulseNode
         && hoveredBreadcrumbItem_ == nextBreadcrumbItem
         && breadcrumbEllipsisHovered_ == nextEllipsisHovered
         && reviewPanelOpen_ == nextReviewPanelOpen) {
@@ -1537,6 +1621,11 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
     hoveredChrome_ = nextChrome;
     hoveredSegment_ = nextSegment;
     hoveredChild_ = nextChild;
+    if (nextPulseNode == core::invalid_node) {
+        hoverPulse_.clear();
+    } else {
+        hoverPulse_.set_target(nextPulseNode, std::chrono::steady_clock::now());
+    }
     hoveredBreadcrumbItem_ = nextBreadcrumbItem;
     breadcrumbEllipsisHovered_ = nextEllipsisHovered;
     reviewPanelOpen_ = nextReviewPanelOpen;
@@ -1557,6 +1646,7 @@ bool AnalyzerView::pointer_left() {
     hoveredChrome_ = AnalyzerHitTarget::None;
     hoveredSegment_.reset();
     hoveredChild_.reset();
+    hoverPulse_.clear();
     hoveredBreadcrumbItem_.reset();
     pressedBreadcrumbItem_.reset();
     breadcrumbEllipsisHovered_ = false;
@@ -1581,6 +1671,7 @@ bool AnalyzerView::scroll_children(const int deltaRows) noexcept {
     }
     childScrollOffset_ = next;
     hoveredChild_.reset();
+    hoverPulse_.clear();
     return true;
 }
 
