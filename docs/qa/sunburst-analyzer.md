@@ -227,3 +227,35 @@ Inspected evidence under `docs/qa/evidence/breadcrumb-transition/`:
   polar segments and fading details.
 - `transition-700ms-light-en.png`: exact static endpoint after interrupted
   navigation, with matching breadcrumb, chart, and ranked list.
+
+## Directory Transition Preference Regression
+
+Recorded on 2026-07-16 after a visible application run appeared to navigate
+without animation. `SPI_GETCLIENTAREAANIMATION` succeeded on the target host
+and returned `FALSE`. The original integration passed that value directly to
+`AnalyzerView::navigate_to_root`, so the already implemented 700 ms transition
+was intentionally bypassed.
+
+DiskBloom now defaults to `Always on` and exposes three localized Settings
+choices: `Always on`, `Follow Windows`, and `Off`. Only `Follow Windows`
+consults the Windows client-area animation flag. The selected preference is
+stored atomically at `%LOCALAPPDATA%\DiskBloom\settings-v1.ini`; missing,
+unknown, or malformed content falls back to `Always on`. QA command-line
+overrides do not rewrite the persisted preference.
+
+Verification on the same host, while the Windows flag remained disabled:
+
+- Release smoke launches with `--directory-transitions=always`, `system`, and
+  `off` all exited with code 0.
+- Unit coverage verifies that `Always on` resolves enabled with the Windows
+  flag disabled, while `Follow Windows` and `Off` resolve disabled.
+- Switching to a disabled effective mode during an active transition completes
+  the destination immediately and stops the 16 ms timer.
+- Atomic persistence tests cover all three round trips, malformed and missing
+  files, and preservation of the old value when the temporary write fails.
+- Debug and Release both passed **9/9 CTest targets**, including dark/light,
+  en-US/zh-CN, deterministic transition capture, and both performance gates.
+
+The final Release transition sample interpolated 2,048 segments over 60 frames
+at **0.090 ms average** and **0.093 ms p95**, with checksum **58,084,095**. The
+8 ms p95 regression gate remains unchanged.

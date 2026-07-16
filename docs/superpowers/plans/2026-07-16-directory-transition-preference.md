@@ -377,7 +377,7 @@ git commit -m "fix: honor explicit directory animation policy"
 - Consumes: completed Tasks 1-4.
 - Produces: checked plan, repeatable verification record, latest Release executable, and GitHub-ready history.
 
-- [ ] **Step 1: Build Release in the MSVC environment**
+- [x] **Step 1: Build Release in the MSVC environment**
 
 Run:
 
@@ -387,7 +387,7 @@ cmake --build build/windows-release --config Release --parallel
 
 Expected: `build/windows-release/src/DiskBloom.exe` is relinked successfully.
 
-- [ ] **Step 2: Run the complete Release suite**
+- [x] **Step 2: Run the complete Release suite**
 
 Run:
 
@@ -397,7 +397,7 @@ ctest --test-dir build/windows-release -C Release --output-on-failure
 
 Expected: all unit, rendering, dark/light, English/Chinese, persistence, collector, and benchmark tests pass.
 
-- [ ] **Step 3: Verify the target-machine regression**
+- [x] **Step 3: Verify the target-machine regression**
 
 With `SPI_GETCLIENTAREAANIMATION` returning false, launch the Release executable with:
 
@@ -409,11 +409,11 @@ build/windows-release/src/DiskBloom.exe --directory-transitions=off
 
 Expected: `always` visibly animates directory entry; `system` and `off` navigate immediately. Repeat the menu check in dark/light and English/Chinese.
 
-- [ ] **Step 4: Record verification and check the plan**
+- [x] **Step 4: Record verification and check the plan**
 
 Document the resolved root cause, three-mode behavior, Release test count, benchmark result, and executable path in `docs/qa/sunburst-analyzer.md`. Mark every completed plan checkbox, run `git diff --check`, and verify no generated settings file is tracked.
 
-- [ ] **Step 5: Commit QA evidence**
+- [x] **Step 5: Commit QA evidence**
 
 ```powershell
 git add docs/qa/sunburst-analyzer.md docs/superpowers/plans/2026-07-16-directory-transition-preference.md
