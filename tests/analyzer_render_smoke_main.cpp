@@ -41,6 +41,11 @@ int main() {
         L"folder",
         0U,
         diskbloom::core::ScanNodeFlags::Directory);
+    (void)tree.add_child(
+        root,
+        L"tiny.bin",
+        1U,
+        diskbloom::core::ScanNodeFlags::None);
     std::vector<diskbloom::core::NodeIndex> reviewNodes;
     reviewNodes.reserve(20U);
     for (std::size_t index = 0U; index < 20U; ++index) {
@@ -75,7 +80,7 @@ int main() {
 
     const auto analyzerLayout = diskbloom::app::compute_analyzer_layout(800.0F, 600.0F, 2U);
     const auto childLayout = diskbloom::app::compute_analyzer_child_list_layout(
-        analyzerLayout.detailsBounds, 1U, 0U);
+        analyzerLayout.detailsBounds, 2U, 0U);
     const auto& childRow = childLayout.rows.front().bounds;
     const auto childRowX = (childRow.left + childRow.right) * 0.5F;
     const auto childRowY = (childRow.top + childRow.bottom) * 0.5F;
@@ -103,7 +108,7 @@ int main() {
         for (const auto language : languages) {
             if (!drawAnalyzer(theme, language)) {
                 DestroyWindow(window);
-                return 12;
+                return 16;
             }
         }
     }
@@ -203,6 +208,72 @@ int main() {
         return 11;
     }
     analyzer.set_recycle_in_progress(false);
+
+    (void)analyzer.pointer_left();
+    analyzer.pointer_down(childRowX, childRowY);
+    analyzer.pointer_released(collectorX, collectorY);
+    const auto releaseActivatedDrop = analyzer.take_command();
+    if (!releaseActivatedDrop.has_value()
+        || releaseActivatedDrop->kind
+            != diskbloom::app::AnalyzerCommandKind::AddToReview
+        || releaseActivatedDrop->node != folder) {
+        DestroyWindow(window);
+        return 44;
+    }
+
+    const auto aggregate = std::find_if(
+        sunburst.segments.begin(),
+        sunburst.segments.end(),
+        [](const diskbloom::core::SunburstSegment& value) {
+            return diskbloom::core::has_flag(
+                value.flags,
+                diskbloom::core::SunburstSegmentFlags::Aggregate);
+        });
+    if (aggregate == sunburst.segments.end()) {
+        DestroyWindow(window);
+        return 45;
+    }
+    const auto aggregateAngle = (aggregate->startAngle + aggregate->endAngle) * 0.5F;
+    const auto aggregateRadius = analyzerLayout.chartGeometry.innerRadius
+        + analyzerLayout.chartGeometry.ringWidth
+            * (static_cast<float>(aggregate->depth) + 0.5F);
+    const auto aggregateX = analyzerLayout.chartGeometry.centerX
+        + std::cos(aggregateAngle) * aggregateRadius;
+    const auto aggregateY = analyzerLayout.chartGeometry.centerY
+        + std::sin(aggregateAngle) * aggregateRadius;
+    analyzer.pointer_down(aggregateX, aggregateY);
+    if (analyzer.drag_pending() || analyzer.drag_active()) {
+        DestroyWindow(window);
+        return 46;
+    }
+    analyzer.pointer_released(aggregateX, aggregateY);
+    if (analyzer.take_command().has_value()) {
+        DestroyWindow(window);
+        return 47;
+    }
+
+    (void)analyzer.pointer_moved(collectorX, collectorY);
+    analyzer.pointer_down(600.0F, childRowY);
+    if (analyzer.drag_pending() || analyzer.drag_active()) {
+        DestroyWindow(window);
+        return 48;
+    }
+
+    (void)analyzer.pointer_left();
+    analyzer.pointer_down(childRowX, childRowY);
+    if (!analyzer.drag_pending() || !analyzer.cancel_drag()
+        || analyzer.drag_pending() || analyzer.drag_active()) {
+        DestroyWindow(window);
+        return 49;
+    }
+
+    analyzer.pointer_down(childRowX, childRowY);
+    (void)analyzer.pointer_moved(790.0F, 100.0F);
+    if (!analyzer.drag_active() || !analyzer.pointer_left()
+        || analyzer.drag_pending() || analyzer.drag_active()) {
+        DestroyWindow(window);
+        return 50;
+    }
 
     auto collector = diskbloom::app::compute_review_collector_layout(
         analyzerLayout.actionBar,
@@ -341,6 +412,13 @@ int main() {
                 return 40;
             }
         }
+    }
+
+    if (!analyzer.set_root(folder)
+        || !drawAnalyzer(lightTheme, diskbloom::core::Language::English)
+        || !analyzer.scroll_at(790.0F, 100.0F, 1)) {
+        DestroyWindow(window);
+        return 51;
     }
 
     DestroyWindow(window);

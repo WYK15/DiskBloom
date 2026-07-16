@@ -92,6 +92,7 @@ target_include_directories(diskbloom_render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_library(
     diskbloom_app
     STATIC
+        app/analyzer_input_lifecycle.cpp
         app/analyzer_navigation.cpp
         app/analyzer_view.cpp
         app/appearance_settings.cpp

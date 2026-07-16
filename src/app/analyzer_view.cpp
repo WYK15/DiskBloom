@@ -570,6 +570,13 @@ bool AnalyzerView::draw(
     }
 
     auto* context = resources_->context;
+    const auto dragVisual = compute_review_drag_visual(
+        reviewDrag_.active(),
+        reviewDrag_.valid_drop(),
+        dragPointerX_,
+        dragPointerY_,
+        widthDip,
+        heightDip);
     context->FillRectangle(to_d2d_rect(layout_.header), resources_->header.Get());
     context->FillRectangle(to_d2d_rect(layout_.actionBar), resources_->header.Get());
     if (hoveredChrome_ == AnalyzerHitTarget::Back) {
@@ -688,12 +695,21 @@ bool AnalyzerView::draw(
         AnalyzerHitTarget::Reveal,
         core::StringId::ShowInExplorer,
         resources_->primary.Get());
-    if (reviewDrag_.active()) {
+    ID2D1Brush* collectorDragBrush = nullptr;
+    switch (dragVisual.collectorToken) {
+    case ReviewCollectorVisualToken::None:
+        break;
+    case ReviewCollectorVisualToken::Hover:
+        collectorDragBrush = resources_->hover.Get();
+        break;
+    case ReviewCollectorVisualToken::Accent:
+        collectorDragBrush = resources_->accent.Get();
+        break;
+    }
+    if (collectorDragBrush != nullptr) {
         context->FillRectangle(
             to_d2d_rect(reviewLayout_.summary),
-            reviewDrag_.valid_drop()
-                ? resources_->accent.Get()
-                : resources_->hover.Get());
+            collectorDragBrush);
     }
     if (reviewItemCount_ > 0U) {
         auto reviewText = std::to_wstring(reviewItemCount_);
@@ -847,57 +863,26 @@ bool AnalyzerView::draw(
         }
     }
     const auto dragNode = reviewDrag_.node();
-    if (reviewDrag_.active() && dragNode < tree_->nodes().size()) {
-        constexpr float previewWidth = 260.0F;
-        constexpr float previewHeight = 64.0F;
-        constexpr float pointerOffset = 14.0F;
-        const auto clientWidth = layout_.header.right;
-        const auto clientHeight = layout_.actionBar.bottom;
-        const auto previewLeft = std::clamp(
-            dragPointerX_ + pointerOffset,
-            0.0F,
-            std::max(0.0F, clientWidth - previewWidth));
-        const auto previewTop = std::clamp(
-            dragPointerY_ + pointerOffset,
-            0.0F,
-            std::max(0.0F, clientHeight - previewHeight));
-        const AnalyzerRectF preview{
-            previewLeft,
-            previewTop,
-            std::min(previewLeft + previewWidth, clientWidth),
-            std::min(previewTop + previewHeight, clientHeight),
-        };
+    if (dragVisual.previewVisible && dragNode < tree_->nodes().size()) {
         context->FillRoundedRectangle(
-            D2D1::RoundedRect(to_d2d_rect(preview), 5.0F, 5.0F),
+            D2D1::RoundedRect(to_d2d_rect(dragVisual.previewBounds), 5.0F, 5.0F),
             resources_->panel.Get());
         context->DrawRoundedRectangle(
-            D2D1::RoundedRect(to_d2d_rect(preview), 5.0F, 5.0F),
-            reviewDrag_.valid_drop()
+            D2D1::RoundedRect(to_d2d_rect(dragVisual.previewBounds), 5.0F, 5.0F),
+            dragVisual.collectorToken == ReviewCollectorVisualToken::Accent
                 ? resources_->accent.Get()
                 : resources_->border.Get(),
             1.0F);
-        const AnalyzerRectF previewName{
-            preview.left + 12.0F,
-            preview.top + 3.0F,
-            preview.right - 12.0F,
-            preview.top + 34.0F,
-        };
-        const AnalyzerRectF previewSize{
-            preview.left + 12.0F,
-            preview.top + 31.0F,
-            preview.right - 12.0F,
-            preview.bottom - 3.0F,
-        };
         drawText(
             tree_->name(dragNode),
             resources_->rowNameFormat.Get(),
-            previewName,
+            dragVisual.nameBounds,
             resources_->primary.Get());
         const auto dragSize = format_bytes(tree_->node(dragNode).logicalSize);
         drawText(
             dragSize,
             resources_->rowNameFormat.Get(),
-            previewSize,
+            dragVisual.sizeBounds,
             resources_->secondary.Get());
     }
     return true;
@@ -958,11 +943,12 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
 }
 
 bool AnalyzerView::pointer_left() {
+    const auto dragChanged = cancel_drag();
     if (hoveredChrome_ == AnalyzerHitTarget::None
         && !hoveredSegment_.has_value()
         && !hoveredChild_.has_value()
         && !reviewPanelOpen_) {
-        return false;
+        return dragChanged;
     }
     hoveredChrome_ = AnalyzerHitTarget::None;
     hoveredSegment_.reset();
@@ -1005,7 +991,8 @@ bool AnalyzerView::scroll_at(
     const float xDip,
     const float yDip,
     const int deltaRows) noexcept {
-    return reviewPanelOpen_ && contains_point(reviewLayout_.panel, xDip, yDip)
+    return review_scroll_target_at(reviewPanelOpen_, reviewLayout_.panel, xDip, yDip)
+            == ReviewScrollTarget::Review
         ? scroll_review(deltaRows)
         : scroll_children(deltaRows);
 }

@@ -6,10 +6,14 @@
 #include <optional>
 
 using diskbloom::app::AnalyzerRectF;
+using diskbloom::app::ReviewCollectorVisualToken;
 using diskbloom::app::ReviewDragState;
+using diskbloom::app::ReviewScrollTarget;
 using diskbloom::app::compute_review_collector_layout;
+using diskbloom::app::compute_review_drag_visual;
 using diskbloom::app::contains_point;
 using diskbloom::app::next_review_scroll_offset;
+using diskbloom::app::review_scroll_target_at;
 
 namespace core = diskbloom::core;
 
@@ -78,4 +82,76 @@ TEST_CASE(review_drag_cancel_resets_active_state_without_emitting_a_node) {
     CHECK(!drag.active());
     CHECK(!drag.valid_drop());
     CHECK(drag.node() == core::invalid_node);
+}
+
+TEST_CASE(review_drag_visual_is_hidden_without_an_active_drag) {
+    const auto visual = compute_review_drag_visual(
+        false, false, 100.0F, 120.0F, 800.0F, 600.0F);
+    CHECK(!visual.previewVisible);
+    CHECK(visual.collectorToken == ReviewCollectorVisualToken::None);
+}
+
+TEST_CASE(review_drag_visual_selects_typed_collector_tokens) {
+    const auto ordinary = compute_review_drag_visual(
+        true, false, 100.0F, 120.0F, 800.0F, 600.0F);
+    CHECK(ordinary.previewVisible);
+    CHECK(ordinary.collectorToken == ReviewCollectorVisualToken::Hover);
+
+    const auto validDrop = compute_review_drag_visual(
+        true, true, 100.0F, 120.0F, 800.0F, 600.0F);
+    CHECK(validDrop.previewVisible);
+    CHECK(validDrop.collectorToken == ReviewCollectorVisualToken::Accent);
+}
+
+TEST_CASE(review_drag_visual_clamps_preview_and_text_bounds_to_client) {
+    const auto visual = compute_review_drag_visual(
+        true, true, 790.0F, 590.0F, 800.0F, 600.0F);
+    CHECK(visual.previewBounds.left == 540.0F);
+    CHECK(visual.previewBounds.top == 536.0F);
+    CHECK(visual.previewBounds.right == 800.0F);
+    CHECK(visual.previewBounds.bottom == 600.0F);
+    CHECK(visual.nameBounds.left == 552.0F);
+    CHECK(visual.nameBounds.top == 539.0F);
+    CHECK(visual.nameBounds.right == 788.0F);
+    CHECK(visual.nameBounds.bottom == 570.0F);
+    CHECK(visual.sizeBounds.left == 552.0F);
+    CHECK(visual.sizeBounds.top == 567.0F);
+    CHECK(visual.sizeBounds.right == 788.0F);
+    CHECK(visual.sizeBounds.bottom == 597.0F);
+
+    const auto topLeft = compute_review_drag_visual(
+        true, false, -40.0F, -40.0F, 800.0F, 600.0F);
+    CHECK(topLeft.previewBounds.left == 0.0F);
+    CHECK(topLeft.previewBounds.top == 0.0F);
+}
+
+TEST_CASE(review_drag_visual_keeps_text_bounds_valid_in_a_small_client) {
+    const auto visual = compute_review_drag_visual(
+        true, false, 18.0F, 8.0F, 20.0F, 10.0F);
+    CHECK(visual.previewBounds.left == 0.0F);
+    CHECK(visual.previewBounds.top == 0.0F);
+    CHECK(visual.previewBounds.right == 20.0F);
+    CHECK(visual.previewBounds.bottom == 10.0F);
+    CHECK(visual.nameBounds.left <= visual.nameBounds.right);
+    CHECK(visual.nameBounds.top <= visual.nameBounds.bottom);
+    CHECK(visual.nameBounds.left >= visual.previewBounds.left);
+    CHECK(visual.nameBounds.right <= visual.previewBounds.right);
+    CHECK(visual.nameBounds.top >= visual.previewBounds.top);
+    CHECK(visual.nameBounds.bottom <= visual.previewBounds.bottom);
+    CHECK(visual.sizeBounds.left <= visual.sizeBounds.right);
+    CHECK(visual.sizeBounds.top <= visual.sizeBounds.bottom);
+    CHECK(visual.sizeBounds.left >= visual.previewBounds.left);
+    CHECK(visual.sizeBounds.right <= visual.previewBounds.right);
+    CHECK(visual.sizeBounds.top >= visual.previewBounds.top);
+    CHECK(visual.sizeBounds.bottom <= visual.previewBounds.bottom);
+}
+
+TEST_CASE(review_scroll_target_routes_open_panel_coordinates_and_falls_back) {
+    const AnalyzerRectF panel{20.0F, 100.0F, 620.0F, 540.0F};
+    CHECK(review_scroll_target_at(true, panel, 100.0F, 200.0F)
+        == ReviewScrollTarget::Review);
+    CHECK(review_scroll_target_at(true, panel, 700.0F, 200.0F)
+        == ReviewScrollTarget::Children);
+    CHECK(review_scroll_target_at(false, panel, 100.0F, 200.0F)
+        == ReviewScrollTarget::Children);
 }

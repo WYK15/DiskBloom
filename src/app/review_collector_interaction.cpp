@@ -91,6 +91,85 @@ bool contains_point(
         && yDip >= bounds.top && yDip < bounds.bottom;
 }
 
+ReviewDragVisual compute_review_drag_visual(
+    const bool active,
+    const bool validDrop,
+    const float pointerXDip,
+    const float pointerYDip,
+    const float clientWidthDip,
+    const float clientHeightDip) noexcept {
+    ReviewDragVisual visual;
+    if (!active) {
+        return visual;
+    }
+
+    constexpr float previewWidth = 260.0F;
+    constexpr float previewHeight = 64.0F;
+    constexpr float pointerOffset = 14.0F;
+    const auto clientWidth = std::max(clientWidthDip, 0.0F);
+    const auto clientHeight = std::max(clientHeightDip, 0.0F);
+    const auto previewLeft = std::clamp(
+        pointerXDip + pointerOffset,
+        0.0F,
+        std::max(0.0F, clientWidth - previewWidth));
+    const auto previewTop = std::clamp(
+        pointerYDip + pointerOffset,
+        0.0F,
+        std::max(0.0F, clientHeight - previewHeight));
+
+    visual.previewVisible = true;
+    visual.collectorToken = validDrop
+        ? ReviewCollectorVisualToken::Accent
+        : ReviewCollectorVisualToken::Hover;
+    visual.previewBounds = {
+        previewLeft,
+        previewTop,
+        std::min(previewLeft + previewWidth, clientWidth),
+        std::min(previewTop + previewHeight, clientHeight),
+    };
+    const auto textLeft = std::min(
+        visual.previewBounds.left + 12.0F,
+        visual.previewBounds.right);
+    const auto textRight = std::max(
+        textLeft,
+        visual.previewBounds.right - 12.0F);
+    const auto nameTop = std::min(
+        visual.previewBounds.top + 3.0F,
+        visual.previewBounds.bottom);
+    visual.nameBounds = {
+        textLeft,
+        nameTop,
+        textRight,
+        std::clamp(
+            visual.previewBounds.top + 34.0F,
+            nameTop,
+            visual.previewBounds.bottom),
+    };
+    const auto sizeTop = std::min(
+        visual.previewBounds.top + 31.0F,
+        visual.previewBounds.bottom);
+    visual.sizeBounds = {
+        textLeft,
+        sizeTop,
+        textRight,
+        std::clamp(
+            visual.previewBounds.bottom - 3.0F,
+            sizeTop,
+            visual.previewBounds.bottom),
+    };
+    return visual;
+}
+
+ReviewScrollTarget review_scroll_target_at(
+    const bool reviewPanelOpen,
+    const AnalyzerRectF& reviewPanel,
+    const float xDip,
+    const float yDip) noexcept {
+    return reviewPanelOpen && contains_point(reviewPanel, xDip, yDip)
+        ? ReviewScrollTarget::Review
+        : ReviewScrollTarget::Children;
+}
+
 bool ReviewDragState::begin(
     const core::NodeIndex node,
     const float xDip,

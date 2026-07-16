@@ -24,6 +24,25 @@ struct ReviewCollectorLayout {
     std::size_t scrollOffset = 0U;
 };
 
+enum class ReviewCollectorVisualToken {
+    None,
+    Hover,
+    Accent,
+};
+
+struct ReviewDragVisual {
+    bool previewVisible = false;
+    ReviewCollectorVisualToken collectorToken = ReviewCollectorVisualToken::None;
+    AnalyzerRectF previewBounds;
+    AnalyzerRectF nameBounds;
+    AnalyzerRectF sizeBounds;
+};
+
+enum class ReviewScrollTarget {
+    Children,
+    Review,
+};
+
 [[nodiscard]] ReviewCollectorLayout compute_review_collector_layout(
     const AnalyzerRectF& actionBar,
     float widthDip,
@@ -39,6 +58,20 @@ struct ReviewCollectorLayout {
 
 [[nodiscard]] bool contains_point(
     const AnalyzerRectF& bounds,
+    float xDip,
+    float yDip) noexcept;
+
+[[nodiscard]] ReviewDragVisual compute_review_drag_visual(
+    bool active,
+    bool validDrop,
+    float pointerXDip,
+    float pointerYDip,
+    float clientWidthDip,
+    float clientHeightDip) noexcept;
+
+[[nodiscard]] ReviewScrollTarget review_scroll_target_at(
+    bool reviewPanelOpen,
+    const AnalyzerRectF& reviewPanel,
     float xDip,
     float yDip) noexcept;
 

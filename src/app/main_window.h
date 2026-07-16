@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app/appearance_settings.h"
+#include "app/analyzer_input_lifecycle.h"
 #include "app/analyzer_navigation.h"
 #include "app/analyzer_view.h"
 #include "app/disk_overview.h"
@@ -35,6 +36,7 @@ private:
     void handle_overview_command(const OverviewCommand& command);
     void handle_analyzer_command(const AnalyzerCommand& command);
     void dispatch_analyzer_command();
+    [[nodiscard]] bool apply_analyzer_input_actions(const AnalyzerInputActions& actions);
     void confirm_review_deletion();
     void handle_volume_scan(std::size_t volumeIndex);
     void handle_folder_scan();
