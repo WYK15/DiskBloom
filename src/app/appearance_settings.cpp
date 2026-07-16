@@ -16,6 +16,17 @@ bool resolve_directory_transitions(
     return false;
 }
 
+bool is_directory_transition_command(const SettingsCommand command) noexcept {
+    switch (command) {
+    case SettingsCommand::DirectoryTransitionsAlwaysOn:
+    case SettingsCommand::DirectoryTransitionsFollowSystem:
+    case SettingsCommand::DirectoryTransitionsOff:
+        return true;
+    default:
+        return false;
+    }
+}
+
 bool apply_settings_command(
     AppearanceSettings& settings,
     const SettingsCommand command) noexcept {

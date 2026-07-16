@@ -27,6 +27,21 @@ TEST_CASE(string_catalog_switches_language) {
         == L"Disks and Folders");
     CHECK(get_string(Language::SimplifiedChinese, StringId::DisksAndFolders)
         == L"\u78c1\u76d8\u548c\u6587\u4ef6\u5939");
+    CHECK(get_string(Language::English, StringId::DirectoryTransitions)
+        == L"Directory transitions");
+    CHECK(get_string(Language::SimplifiedChinese, StringId::DirectoryTransitions)
+        == L"\u76ee\u5f55\u5207\u6362\u52a8\u753b");
+    CHECK(get_string(Language::English, StringId::AnimationsAlwaysOn)
+        == L"Always on");
+    CHECK(get_string(Language::English, StringId::AnimationsFollowWindows)
+        == L"Follow Windows");
+    CHECK(get_string(Language::English, StringId::AnimationsOff) == L"Off");
+    CHECK(get_string(Language::SimplifiedChinese, StringId::AnimationsAlwaysOn)
+        == L"\u59cb\u7ec8\u5f00\u542f");
+    CHECK(get_string(Language::SimplifiedChinese, StringId::AnimationsFollowWindows)
+        == L"\u8ddf\u968f Windows");
+    CHECK(get_string(Language::SimplifiedChinese, StringId::AnimationsOff)
+        == L"\u5173\u95ed");
 }
 
 TEST_CASE(string_catalog_rejects_invalid_identifier) {

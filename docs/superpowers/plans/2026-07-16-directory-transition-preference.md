@@ -222,7 +222,7 @@ git commit -m "feat: persist directory transition preference"
 - Consumes: preference model and settings-store APIs from Tasks 1-2.
 - Produces: localized menu entries and startup/saving integration.
 
-- [ ] **Step 1: Write failing localization and startup-default tests**
+- [x] **Step 1: Write failing localization and startup-default tests**
 
 Add `StringId` coverage for:
 
@@ -238,11 +238,11 @@ CHECK(get_string(Language::English, StringId::AnimationsOff) == L"Off");
 
 Extend the catalog completeness loop so every new ID is non-empty in both languages.
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 Run the focused unit-test build and observe missing `StringId` compilation failures.
 
-- [ ] **Step 3: Add catalog entries and menu construction**
+- [x] **Step 3: Add catalog entries and menu construction**
 
 Append these IDs before `Count`:
 
@@ -255,7 +255,7 @@ AnimationsOff,
 
 Add English and escaped Simplified Chinese strings. In `show_settings_menu`, create a third popup menu, append the three checked commands, attach it under the localized `DirectoryTransitions` label, and destroy the root menu as today. If any popup allocation fails, destroy every successfully created menu and return.
 
-- [ ] **Step 4: Load before QA overrides and save explicit menu changes**
+- [x] **Step 4: Load before QA overrides and save explicit menu changes**
 
 In `wWinMain`, initialize `AlwaysOn`, then load:
 
@@ -268,7 +268,7 @@ if (const auto saved = diskbloom::platform::windows::load_directory_transition_m
 
 Parse command-line overrides afterward so QA arguments win without rewriting disk state. After `apply_settings_command` succeeds in `show_settings_menu`, call `save_directory_transition_mode_atomic` only when the selected command is one of the three directory-transition commands.
 
-- [ ] **Step 5: Build and run catalog plus smoke coverage**
+- [x] **Step 5: Build and run catalog plus smoke coverage**
 
 Run:
 
@@ -279,7 +279,7 @@ ctest --test-dir build/windows-debug -C Debug -R 'diskbloom_tests|diskbloom_app_
 
 Expected: catalogs and settings commands pass; all four dark/light and English/Chinese smoke tests pass.
 
-- [ ] **Step 6: Commit menu and startup integration**
+- [x] **Step 6: Commit menu and startup integration**
 
 ```powershell
 git add src/core/language.h src/core/string_catalog.cpp src/app/win_main.cpp src/app/main_window.cpp tests/string_catalog_tests.cpp tests/appearance_settings_tests.cpp

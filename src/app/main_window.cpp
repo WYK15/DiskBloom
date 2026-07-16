@@ -5,6 +5,7 @@
 #include "platform/windows/folder_picker.h"
 #include "platform/windows/shell_actions.h"
 #include "platform/windows/recycle_bin.h"
+#include "platform/windows/settings_store.h"
 #include "platform/windows/system_theme.h"
 #include "platform/windows/volume_service.h"
 #include "resources/resource.h"
@@ -707,7 +708,9 @@ void MainWindow::show_settings_menu() {
     const auto root = CreatePopupMenu();
     const auto theme_menu = CreatePopupMenu();
     const auto language_menu = CreatePopupMenu();
-    if (root == nullptr || theme_menu == nullptr || language_menu == nullptr) {
+    const auto transitions_menu = CreatePopupMenu();
+    if (root == nullptr || theme_menu == nullptr || language_menu == nullptr
+        || transitions_menu == nullptr) {
         if (root != nullptr) {
             DestroyMenu(root);
         }
@@ -716,6 +719,9 @@ void MainWindow::show_settings_menu() {
         }
         if (language_menu != nullptr) {
             DestroyMenu(language_menu);
+        }
+        if (transitions_menu != nullptr) {
+            DestroyMenu(transitions_menu);
         }
         return;
     }
@@ -759,10 +765,33 @@ void MainWindow::show_settings_menu() {
         menu_text(appearance_.language, core::StringId::SimplifiedChinese),
         appearance_.language == core::Language::SimplifiedChinese);
 
+    append_checked(
+        transitions_menu,
+        SettingsCommand::DirectoryTransitionsAlwaysOn,
+        menu_text(appearance_.language, core::StringId::AnimationsAlwaysOn),
+        appearance_.directoryTransitions == DirectoryTransitionMode::AlwaysOn);
+    append_checked(
+        transitions_menu,
+        SettingsCommand::DirectoryTransitionsFollowSystem,
+        menu_text(appearance_.language, core::StringId::AnimationsFollowWindows),
+        appearance_.directoryTransitions == DirectoryTransitionMode::FollowSystem);
+    append_checked(
+        transitions_menu,
+        SettingsCommand::DirectoryTransitionsOff,
+        menu_text(appearance_.language, core::StringId::AnimationsOff),
+        appearance_.directoryTransitions == DirectoryTransitionMode::Off);
+
     const auto theme_label = menu_text(appearance_.language, core::StringId::Theme);
     const auto language_label = menu_text(appearance_.language, core::StringId::Language);
+    const auto transitions_label =
+        menu_text(appearance_.language, core::StringId::DirectoryTransitions);
     AppendMenuW(root, MF_POPUP, reinterpret_cast<UINT_PTR>(theme_menu), theme_label.c_str());
     AppendMenuW(root, MF_POPUP, reinterpret_cast<UINT_PTR>(language_menu), language_label.c_str());
+    AppendMenuW(
+        root,
+        MF_POPUP,
+        reinterpret_cast<UINT_PTR>(transitions_menu),
+        transitions_label.c_str());
 
     POINT cursor{};
     GetCursorPos(&cursor);
@@ -775,10 +804,16 @@ void MainWindow::show_settings_menu() {
         nullptr);
     DestroyMenu(root);
 
-    if (!apply_settings_command(
-            appearance_,
-            static_cast<SettingsCommand>(selected))) {
+    const auto command = static_cast<SettingsCommand>(selected);
+    if (!apply_settings_command(appearance_, command)) {
         return;
+    }
+    if (is_directory_transition_command(command)) {
+        const auto settingsPath = platform::windows::default_settings_path();
+        const auto saved = platform::windows::save_directory_transition_mode_atomic(
+            settingsPath,
+            appearance_.directoryTransitions);
+        (void)saved;
     }
 
     SetWindowTextW(

@@ -35,6 +35,8 @@ struct AppearanceSettings {
     DirectoryTransitionMode mode,
     bool windowsAnimationsEnabled) noexcept;
 
+[[nodiscard]] bool is_directory_transition_command(SettingsCommand command) noexcept;
+
 [[nodiscard]] bool apply_settings_command(
     AppearanceSettings& settings,
     SettingsCommand command) noexcept;

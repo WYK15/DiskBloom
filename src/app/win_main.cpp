@@ -1,4 +1,5 @@
 #include "app/main_window.h"
+#include "platform/windows/settings_store.h"
 
 #include <Windows.h>
 #include <shellapi.h>
@@ -16,6 +17,11 @@ int WINAPI wWinMain(
             ? diskbloom::core::Language::SimplifiedChinese
             : diskbloom::core::Language::English,
     };
+    const auto settingsPath = diskbloom::platform::windows::default_settings_path();
+    if (const auto saved =
+            diskbloom::platform::windows::load_directory_transition_mode(settingsPath)) {
+        appearance.directoryTransitions = *saved;
+    }
     bool smoke_test = false;
     int argument_count = 0;
     auto** arguments = CommandLineToArgvW(GetCommandLineW(), &argument_count);

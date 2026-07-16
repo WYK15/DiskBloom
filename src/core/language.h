@@ -43,6 +43,10 @@ enum class StringId : std::size_t {
     SimplifiedChinese,
     Collected,
     DisksAndFolders,
+    DirectoryTransitions,
+    AnimationsAlwaysOn,
+    AnimationsFollowWindows,
+    AnimationsOff,
     Count,
 };
 

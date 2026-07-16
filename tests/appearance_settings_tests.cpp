@@ -7,6 +7,7 @@ using diskbloom::app::DirectoryTransitionMode;
 using diskbloom::app::SettingsCommand;
 using diskbloom::app::apply_launch_argument;
 using diskbloom::app::apply_settings_command;
+using diskbloom::app::is_directory_transition_command;
 using diskbloom::app::resolve_directory_transitions;
 using diskbloom::core::Language;
 using diskbloom::core::ThemeMode;
@@ -83,6 +84,17 @@ TEST_CASE(appearance_settings_accept_qa_launch_arguments) {
     CHECK(settings.directoryTransitions == DirectoryTransitionMode::Off);
     CHECK(apply_launch_argument(settings, L"--directory-transitions=always"));
     CHECK(settings.directoryTransitions == DirectoryTransitionMode::AlwaysOn);
+}
+
+TEST_CASE(appearance_settings_identify_only_directory_transition_commands) {
+    CHECK(is_directory_transition_command(
+        SettingsCommand::DirectoryTransitionsAlwaysOn));
+    CHECK(is_directory_transition_command(
+        SettingsCommand::DirectoryTransitionsFollowSystem));
+    CHECK(is_directory_transition_command(SettingsCommand::DirectoryTransitionsOff));
+    CHECK(!is_directory_transition_command(SettingsCommand::ThemeDark));
+    CHECK(!is_directory_transition_command(SettingsCommand::LanguageEnglish));
+    CHECK(!is_directory_transition_command(static_cast<SettingsCommand>(9999)));
 }
 
 TEST_CASE(appearance_settings_ignore_unrecognized_launch_argument) {
