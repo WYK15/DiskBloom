@@ -9,9 +9,18 @@
 #include <dxgi1_2.h>
 #include <wrl/client.h>
 
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 
 namespace diskbloom::render {
+
+struct CapturedFrame {
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
+    std::uint32_t rowPitch = 0U;
+    std::vector<std::byte> pixels;
+};
 
 class GraphicsDevice final {
 public:
@@ -24,7 +33,7 @@ public:
     [[nodiscard]] bool initialize(HWND window) noexcept;
     [[nodiscard]] bool resize(std::uint32_t width, std::uint32_t height) noexcept;
     [[nodiscard]] bool begin_draw(core::Rgba clear_color) noexcept;
-    [[nodiscard]] HRESULT end_draw() noexcept;
+    [[nodiscard]] HRESULT end_draw(CapturedFrame* capture = nullptr) noexcept;
 
     [[nodiscard]] ID2D1DeviceContext* d2d_context() const noexcept;
     [[nodiscard]] IDWriteFactory* dwrite_factory() const noexcept;
@@ -35,6 +44,7 @@ private:
     [[nodiscard]] bool create_device_resources() noexcept;
     [[nodiscard]] bool create_window_size_resources() noexcept;
     [[nodiscard]] HRESULT recover_device(HRESULT reason) noexcept;
+    [[nodiscard]] HRESULT capture_back_buffer(CapturedFrame& capture) noexcept;
 
     HWND window_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D11Device> d3d_device_;

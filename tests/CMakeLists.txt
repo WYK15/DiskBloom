@@ -12,6 +12,7 @@ add_executable(
     deletion_review_tests.cpp
     disk_overview_layout_tests.cpp
     file_scanner_tests.cpp
+    graphics_capture_tests.cpp
     node_path_tests.cpp
     scan_session_tests.cpp
     scan_tree_tests.cpp
@@ -67,6 +68,8 @@ target_link_libraries(
         diskbloom_core
         diskbloom_options
         diskbloom_render
+        ole32
+        windowscodecs
 )
 target_include_directories(
     diskbloom_analyzer_render_smoke

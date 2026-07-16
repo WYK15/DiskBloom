@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 
 namespace diskbloom::render {
 namespace {
@@ -187,7 +188,7 @@ bool GraphicsDevice::begin_draw(const core::Rgba clear_color) noexcept {
     return true;
 }
 
-HRESULT GraphicsDevice::end_draw() noexcept {
+HRESULT GraphicsDevice::end_draw(CapturedFrame* const capture) noexcept {
     if (d2d_context_ == nullptr || swap_chain_ == nullptr) {
         return E_UNEXPECTED;
     }
@@ -200,10 +201,71 @@ HRESULT GraphicsDevice::end_draw() noexcept {
         return is_device_lost(draw_result) ? recover_device(draw_result) : draw_result;
     }
 
+    if (capture != nullptr) {
+        const auto captureResult = capture_back_buffer(*capture);
+        if (FAILED(captureResult)) {
+            return captureResult;
+        }
+    }
+
     const auto present_result = swap_chain_->Present(1U, 0U);
     return is_device_lost(present_result)
         ? recover_device(present_result)
         : present_result;
+}
+
+HRESULT GraphicsDevice::capture_back_buffer(CapturedFrame& capture) noexcept {
+    capture = {};
+    if (swap_chain_ == nullptr || d3d_device_ == nullptr || d3d_context_ == nullptr) {
+        return E_UNEXPECTED;
+    }
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
+    auto result = swap_chain_->GetBuffer(0U, IID_PPV_ARGS(&backBuffer));
+    if (FAILED(result)) {
+        return result;
+    }
+    D3D11_TEXTURE2D_DESC description{};
+    backBuffer->GetDesc(&description);
+    if (description.Width == 0U || description.Height == 0U
+        || description.Format != DXGI_FORMAT_B8G8R8A8_UNORM) {
+        return E_UNEXPECTED;
+    }
+    description.BindFlags = 0U;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    description.Usage = D3D11_USAGE_STAGING;
+    description.MiscFlags = 0U;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> staging;
+    result = d3d_device_->CreateTexture2D(&description, nullptr, &staging);
+    if (FAILED(result)) {
+        return result;
+    }
+    d3d_context_->CopyResource(staging.Get(), backBuffer.Get());
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    result = d3d_context_->Map(staging.Get(), 0U, D3D11_MAP_READ, 0U, &mapped);
+    if (FAILED(result)) {
+        return result;
+    }
+
+    capture.width = description.Width;
+    capture.height = description.Height;
+    capture.rowPitch = description.Width * 4U;
+    try {
+        capture.pixels.resize(
+            static_cast<std::size_t>(capture.rowPitch) * capture.height);
+    } catch (...) {
+        d3d_context_->Unmap(staging.Get(), 0U);
+        capture = {};
+        return E_OUTOFMEMORY;
+    }
+    const auto* source = static_cast<const std::byte*>(mapped.pData);
+    for (std::uint32_t row = 0U; row < capture.height; ++row) {
+        std::memcpy(
+            capture.pixels.data() + static_cast<std::size_t>(row) * capture.rowPitch,
+            source + static_cast<std::size_t>(row) * mapped.RowPitch,
+            capture.rowPitch);
+    }
+    d3d_context_->Unmap(staging.Get(), 0U);
+    return S_OK;
 }
 
 HRESULT GraphicsDevice::recover_device(const HRESULT reason) noexcept {

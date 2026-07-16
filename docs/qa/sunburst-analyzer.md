@@ -5,8 +5,9 @@ Date: 2026-07-16
 ## Scope
 
 The analyzer consumes an immutable completed `ScanTree`, builds at most 2,048
-cached polar segments, batches Direct2D path geometry into at most 12 palette
-draws, and performs pointer hit testing without traversing the filesystem tree.
+cached polar segments, batches static Direct2D path geometry into at most 12
+palette draws and transition geometry into at most 24 palette draws, and
+performs pointer hit testing without traversing the filesystem tree.
 Cancelled and failed scans do not enter this view.
 
 ## Build And Host
@@ -86,12 +87,12 @@ Implemented parity:
 - Stable color identity across descendant rings and visible small-item
   aggregation.
 
-Remaining differences, not accepted as complete parity yet:
+Added parity for the supplied navigation reference:
 
-- The reference has a full clickable breadcrumb chain; DiskBloom currently
-  shows the current root plus a back control.
-- The reference uses animated fan-shaped transitions. DiskBloom currently
-  switches cached layouts without the matching transition animation.
+- Full clickable absolute-path breadcrumbs with back/forward history.
+- Responsive middle-path collapse into a themed, clickable overflow menu.
+- A 700 ms cubic ease-out polar segment morph with immediate path updates,
+  detail/list cross-fade, rapid-navigation snapshots, and reduced-motion support.
 
 Added after the original baseline:
 
@@ -180,3 +181,49 @@ Checks not claimed as manual visual verification:
   analyzer fixture renders populated/drag/scroll states in all four
   theme/language combinations, but those frames were not treated as manual
   pixel verification.
+
+## Breadcrumb And Transition Baseline
+
+Recorded on 2026-07-16 with the same Release host and toolchain. The benchmark
+interpolates exactly 2,048 matched segments for 60 frames and prepares six
+polar geometry points per segment in preallocated contiguous buffers. It does
+not include GPU submission or `Present`.
+
+Command:
+
+```powershell
+build/windows-release/benchmarks/diskbloom_sunburst_transition_benchmark.exe
+```
+
+| Run | Segments | Frames | Average (ms) | p95 (ms) | Checksum |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 2,048 | 60 | 0.090 | 0.098 | 58,084,095 |
+| 2 | 2,048 | 60 | 0.091 | 0.095 | 58,084,095 |
+| 3 | 2,048 | 60 | 0.089 | 0.090 | 58,084,095 |
+
+Median p95: **0.095 ms**. The executable fails if the p95 exceeds **8 ms**, if
+the checksum is zero, or if the plan does not contain exactly 2,048 morphs.
+CTest also requires `segments=2048` in the output. The checksum remained stable
+at **58,084,095** in all three Release runs.
+
+Debug and Release both passed **9/9 CTest targets**, including the transition
+performance gate, BGRA capture test, deterministic transition render smoke,
+and all dark/light plus en-US/zh-CN application smoke combinations.
+
+### Reliable Frame Evidence
+
+`GraphicsDevice::end_draw(CapturedFrame*)` copies the D3D11 BGRA back buffer to
+a staging texture after Direct2D `EndDraw` and before swap-chain `Present`.
+The analyzer smoke executable encodes that buffer through WIC, avoiding the
+black or unrelated regions seen in desktop-level capture attempts.
+
+Inspected evidence under `docs/qa/evidence/breadcrumb-transition/`:
+
+- `breadcrumb-compact-light-en.png`: compact root/ellipsis/parent/current path.
+- `breadcrumb-overflow-dark-zh.png`: dark themed hidden-path menu and Chinese UI.
+- `transition-000ms-light-en.png`: destination breadcrumb updated immediately,
+  with the source chart/detail still visible.
+- `transition-350ms-light-en.png`: nonblank midpoint with contracted/morphed
+  polar segments and fading details.
+- `transition-700ms-light-en.png`: exact static endpoint after interrupted
+  navigation, with matching breadcrumb, chart, and ranked list.

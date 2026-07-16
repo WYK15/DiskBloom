@@ -5,14 +5,79 @@
 #include "render/graphics_device.h"
 
 #include <Windows.h>
+#include <wincodec.h>
+#include <wrl/client.h>
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
-int main() {
+namespace {
+
+[[nodiscard]] bool save_png(
+    const diskbloom::render::CapturedFrame& capture,
+    const std::filesystem::path& path) {
+    Microsoft::WRL::ComPtr<IWICImagingFactory> factory;
+    if (FAILED(CoCreateInstance(
+            CLSID_WICImagingFactory,
+            nullptr,
+            CLSCTX_INPROC_SERVER,
+            IID_PPV_ARGS(&factory)))) {
+        return false;
+    }
+    Microsoft::WRL::ComPtr<IWICStream> stream;
+    Microsoft::WRL::ComPtr<IWICBitmapEncoder> encoder;
+    Microsoft::WRL::ComPtr<IWICBitmapFrameEncode> frame;
+    if (FAILED(factory->CreateStream(&stream))
+        || FAILED(stream->InitializeFromFilename(path.c_str(), GENERIC_WRITE))
+        || FAILED(factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder))
+        || FAILED(encoder->Initialize(stream.Get(), WICBitmapEncoderNoCache))
+        || FAILED(encoder->CreateNewFrame(&frame, nullptr))
+        || FAILED(frame->Initialize(nullptr))
+        || FAILED(frame->SetSize(capture.width, capture.height))) {
+        return false;
+    }
+    auto format = GUID_WICPixelFormat32bppBGRA;
+    if (FAILED(frame->SetPixelFormat(&format))
+        || format != GUID_WICPixelFormat32bppBGRA
+        || FAILED(frame->WritePixels(
+            capture.height,
+            capture.rowPitch,
+            static_cast<UINT>(capture.pixels.size()),
+            reinterpret_cast<BYTE*>(const_cast<std::byte*>(capture.pixels.data()))))
+        || FAILED(frame->Commit())
+        || FAILED(encoder->Commit())) {
+        return false;
+    }
+    return true;
+}
+
+} // namespace
+
+int main(const int argc, char** argv) {
+    std::filesystem::path captureDirectory;
+    for (int index = 1; index < argc; ++index) {
+        constexpr std::string_view prefix = "--capture-dir=";
+        const std::string_view argument(argv[index]);
+        if (argument.starts_with(prefix)) {
+            captureDirectory = std::filesystem::path(
+                std::string(argument.substr(prefix.size())));
+        }
+    }
+    if (!captureDirectory.empty()) {
+        std::error_code error;
+        std::filesystem::create_directories(captureDirectory, error);
+        if (error) {
+            return 72;
+        }
+    }
+    const auto comResult = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    const auto uninitializeCom = SUCCEEDED(comResult);
     const auto window = CreateWindowExW(
         0U,
         L"STATIC",
@@ -114,14 +179,23 @@ int main() {
         diskbloom::core::Language::SimplifiedChinese,
     };
     const auto drawAnalyzer = [&](const diskbloom::core::ThemeTokens& theme,
-                                  const diskbloom::core::Language language) {
+                                  const diskbloom::core::Language language,
+                                  diskbloom::render::CapturedFrame* capture = nullptr) {
         return graphics.begin_draw(theme.window)
             && analyzer.draw(graphics, theme, language, 800.0F, 600.0F)
-            && SUCCEEDED(graphics.end_draw());
+            && SUCCEEDED(graphics.end_draw(capture));
     };
     if (!drawAnalyzer(lightTheme, diskbloom::core::Language::English)) {
         DestroyWindow(window);
         return 3;
+    }
+    if (!captureDirectory.empty()) {
+        diskbloom::render::CapturedFrame capture;
+        if (!drawAnalyzer(lightTheme, diskbloom::core::Language::English, &capture)
+            || !save_png(capture, captureDirectory / L"breadcrumb-compact-light-en.png")) {
+            DestroyWindow(window);
+            return 73;
+        }
     }
 
     analyzer.pointer_pressed(32.0F, 32.0F);
@@ -166,6 +240,17 @@ int main() {
         || !drawAnalyzer(lightTheme, diskbloom::core::Language::English)) {
         DestroyWindow(window);
         return 56;
+    }
+    if (!captureDirectory.empty()) {
+        diskbloom::render::CapturedFrame capture;
+        if (!drawAnalyzer(
+                diskbloom::core::make_theme(true),
+                diskbloom::core::Language::SimplifiedChinese,
+                &capture)
+            || !save_png(capture, captureDirectory / L"breadcrumb-overflow-dark-zh.png")) {
+            DestroyWindow(window);
+            return 74;
+        }
     }
     (void)analyzer.pointer_moved(ellipsisX + 4.0F, 79.0F);
     if (analyzer.hovered_breadcrumb_path() != L"D:\\") {
@@ -528,6 +613,11 @@ int main() {
         DestroyWindow(window);
         return 51;
     }
+    analyzer.set_breadcrumb(diskbloom::app::build_analyzer_breadcrumb(
+        tree,
+        root,
+        folder,
+        L"D:\\workspace\\root"));
 
     const auto transitionStart = std::chrono::steady_clock::time_point{};
     analyzer.set_history_availability(true, true);
@@ -536,6 +626,19 @@ int main() {
         || analyzer.current_root() != root) {
         DestroyWindow(window);
         return 60;
+    }
+    analyzer.set_breadcrumb(diskbloom::app::build_analyzer_breadcrumb(
+        tree,
+        root,
+        root,
+        L"D:\\workspace\\root"));
+    if (!captureDirectory.empty()) {
+        diskbloom::render::CapturedFrame capture;
+        if (!drawAnalyzer(lightTheme, diskbloom::core::Language::English, &capture)
+            || !save_png(capture, captureDirectory / L"transition-000ms-light-en.png")) {
+            DestroyWindow(window);
+            return 75;
+        }
     }
     analyzer.pointer_pressed(analyzerLayout.previewButton.left + 4.0F,
                              analyzerLayout.previewButton.top + 4.0F);
@@ -583,12 +686,25 @@ int main() {
             }
         }
     }
+    if (!captureDirectory.empty()) {
+        diskbloom::render::CapturedFrame capture;
+        if (!drawAnalyzer(lightTheme, diskbloom::core::Language::English, &capture)
+            || !save_png(capture, captureDirectory / L"transition-350ms-light-en.png")) {
+            DestroyWindow(window);
+            return 76;
+        }
+    }
     const auto interruption = transitionStart + std::chrono::milliseconds{400};
     if (!analyzer.navigate_to_root(folder, interruption, true)
         || !analyzer.transition_active()) {
         DestroyWindow(window);
         return 65;
     }
+    analyzer.set_breadcrumb(diskbloom::app::build_analyzer_breadcrumb(
+        tree,
+        root,
+        folder,
+        L"D:\\workspace\\root"));
     for (const auto dark : theme_modes) {
         const auto theme = diskbloom::core::make_theme(dark);
         for (const auto language : languages) {
@@ -612,6 +728,14 @@ int main() {
             }
         }
     }
+    if (!captureDirectory.empty()) {
+        diskbloom::render::CapturedFrame capture;
+        if (!drawAnalyzer(lightTheme, diskbloom::core::Language::English, &capture)
+            || !save_png(capture, captureDirectory / L"transition-700ms-light-en.png")) {
+            DestroyWindow(window);
+            return 77;
+        }
+    }
     if (!analyzer.navigate_to_root(root, interruption, false)
         || analyzer.transition_active()
         || analyzer.current_root() != root) {
@@ -620,5 +744,8 @@ int main() {
     }
 
     DestroyWindow(window);
+    if (uninitializeCom) {
+        CoUninitialize();
+    }
     return 0;
 }
