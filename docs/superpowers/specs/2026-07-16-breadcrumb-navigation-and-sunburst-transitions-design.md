@@ -100,7 +100,7 @@ When Windows client-area animations are disabled through `SPI_GETCLIENTAREAANIMA
 
 ### Rendering
 
-Each frame interpolates at most 2,048 bounded segment records and rebuilds at most 12 Direct2D color-batched path geometries. It does not rebuild the filesystem tree, rank children, allocate per segment, build paths, or access the filesystem.
+Each frame interpolates at most 2,048 bounded morph records and rebuilds at most 24 Direct2D path geometries: 12 source-palette batches and 12 destination-palette batches. Static rendering remains at 12 batches. The paired batches provide palette and opacity cross-fades without per-segment draw calls. Per-frame work does not rebuild the filesystem tree, rank children, allocate per segment, build paths, or access the filesystem.
 
 Transition vectors reserve their maximum required size at navigation start. Per-frame work reuses buffers. Mathematical hit testing remains disabled until the destination becomes authoritative.
 
