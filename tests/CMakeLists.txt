@@ -1,6 +1,7 @@
 add_executable(
     diskbloom_tests
     appearance_settings_tests.cpp
+    analyzer_breadcrumb_tests.cpp
     analyzer_input_lifecycle_tests.cpp
     analyzer_layout_tests.cpp
     analyzer_child_list_tests.cpp
