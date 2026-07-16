@@ -147,11 +147,13 @@ AnalyzerLayout compute_analyzer_layout(
 
     return {
         .header = {0.0F, 0.0F, width, headerHeight},
-        .backButton = {16.0F, 10.0F, 60.0F, 54.0F},
+        .backButton = {12.0F, 10.0F, 52.0F, 54.0F},
+        .forwardButton = {56.0F, 10.0F, 96.0F, 54.0F},
+        .breadcrumbBounds = {108.0F, 8.0F, std::max(108.0F, width - 150.0F), 56.0F},
         .minimizeButton = {width - 138.0F, 0.0F, width - 92.0F, headerHeight},
         .maximizeButton = {width - 92.0F, 0.0F, width - 46.0F, headerHeight},
         .closeButton = {width - 46.0F, 0.0F, width, headerHeight},
-        .titleBounds = {76.0F, 0.0F, std::max(76.0F, width - 150.0F), headerHeight},
+        .titleBounds = {108.0F, 0.0F, std::max(108.0F, width - 150.0F), headerHeight},
         .chartBounds = {
             centerX - radius,
             centerY - radius,
@@ -184,6 +186,9 @@ AnalyzerHitTarget hit_test_analyzer_layout(
     const float yDip) noexcept {
     if (contains(layout.backButton, xDip, yDip)) {
         return AnalyzerHitTarget::Back;
+    }
+    if (contains(layout.forwardButton, xDip, yDip)) {
+        return AnalyzerHitTarget::Forward;
     }
     if (contains(layout.minimizeButton, xDip, yDip)) {
         return AnalyzerHitTarget::MinimizeWindow;
@@ -287,6 +292,7 @@ struct AnalyzerView::Resources {
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> danger;
     std::array<Microsoft::WRL::ComPtr<ID2D1SolidColorBrush>, palette_size> palette;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> titleFormat;
+    Microsoft::WRL::ComPtr<IDWriteTextFormat> breadcrumbFormat;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> detailHeadingFormat;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> detailFormat;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> centerFormat;
@@ -294,6 +300,7 @@ struct AnalyzerView::Resources {
     Microsoft::WRL::ComPtr<IDWriteTextFormat> rowSizeFormat;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> buttonFormat;
     Microsoft::WRL::ComPtr<IDWriteInlineObject> rowEllipsis;
+    Microsoft::WRL::ComPtr<IDWriteInlineObject> breadcrumbEllipsis;
     std::array<Microsoft::WRL::ComPtr<ID2D1PathGeometry>, palette_size> batches;
     std::size_t geometryRevision = 0U;
     core::SunburstGeometry geometry{};
@@ -311,6 +318,13 @@ void AnalyzerView::set_tree(const core::ScanTree* tree, const core::NodeIndex ro
     hoveredSegment_.reset();
     hoveredChild_.reset();
     pendingCommand_.reset();
+    hoveredBreadcrumbItem_.reset();
+    pressedBreadcrumbItem_.reset();
+    breadcrumbOverflowOpen_ = false;
+    if (tree == nullptr) {
+        set_breadcrumb({});
+        set_history_availability(false, false);
+    }
     rebuild_layout();
 }
 
@@ -324,7 +338,50 @@ bool AnalyzerView::set_root(const core::NodeIndex root) {
     selectedNode_ = root;
     hoveredSegment_.reset();
     hoveredChild_.reset();
+    hoveredBreadcrumbItem_.reset();
+    pressedBreadcrumbItem_.reset();
+    breadcrumbOverflowOpen_ = false;
     rebuild_layout();
+    return true;
+}
+
+void AnalyzerView::set_breadcrumb(AnalyzerBreadcrumbModel model) {
+    breadcrumb_ = std::move(model);
+    breadcrumbLayout_ = {};
+    breadcrumbLabelWidths_.clear();
+    breadcrumbFlyoutRows_.clear();
+    breadcrumbFlyoutBounds_ = {};
+    hoveredBreadcrumbItem_.reset();
+    pressedBreadcrumbItem_.reset();
+    breadcrumbEllipsisHovered_ = false;
+    breadcrumbOverflowOpen_ = false;
+    breadcrumbLayoutWidth_ = -1.0F;
+}
+
+void AnalyzerView::set_history_availability(
+    const bool canBack,
+    const bool canForward) noexcept {
+    canNavigateBack_ = canBack;
+    canNavigateForward_ = canForward;
+}
+
+std::wstring_view AnalyzerView::hovered_breadcrumb_path() const noexcept {
+    if (!hoveredBreadcrumbItem_.has_value()
+        || *hoveredBreadcrumbItem_ >= breadcrumb_.items.size()) {
+        return {};
+    }
+    return breadcrumb_.items[*hoveredBreadcrumbItem_].absolutePath;
+}
+
+bool AnalyzerView::dismiss_breadcrumb_overflow() noexcept {
+    if (!breadcrumbOverflowOpen_) {
+        return false;
+    }
+    breadcrumbOverflowOpen_ = false;
+    breadcrumbFlyoutRows_.clear();
+    breadcrumbFlyoutBounds_ = {};
+    breadcrumbEllipsisHovered_ = false;
+    hoveredBreadcrumbItem_.reset();
     return true;
 }
 
@@ -365,6 +422,7 @@ void AnalyzerView::set_recycle_in_progress(const bool inProgress) noexcept {
     recycleInProgress_ = inProgress;
     if (inProgress) {
         (void)cancel_drag();
+        (void)dismiss_breadcrumb_overflow();
         hoveredChrome_ = AnalyzerHitTarget::None;
         reviewPanelOpen_ = false;
         pendingCommand_.reset();
@@ -454,6 +512,7 @@ bool AnalyzerView::ensure_resources(
             &format));
     };
     if (!createFormat(24.0F, resources->titleFormat)
+        || !createFormat(15.0F, resources->breadcrumbFormat)
         || !createFormat(27.0F, resources->detailHeadingFormat)
         || !createFormat(18.0F, resources->detailFormat)
         || !createFormat(18.0F, resources->centerFormat)
@@ -464,6 +523,8 @@ bool AnalyzerView::ensure_resources(
     }
     resources->titleFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
     resources->titleFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+    resources->breadcrumbFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+    resources->breadcrumbFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
     resources->detailHeadingFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
     resources->detailFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
     resources->centerFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
@@ -481,7 +542,13 @@ bool AnalyzerView::ensure_resources(
             &resources->rowEllipsis))
         || FAILED(resources->rowNameFormat->SetTrimming(
             &rowTrimming,
-            resources->rowEllipsis.Get()))) {
+            resources->rowEllipsis.Get()))
+        || FAILED(writeFactory->CreateEllipsisTrimmingSign(
+            resources->breadcrumbFormat.Get(),
+            &resources->breadcrumbEllipsis))
+        || FAILED(resources->breadcrumbFormat->SetTrimming(
+            &rowTrimming,
+            resources->breadcrumbEllipsis.Get()))) {
         return false;
     }
     resources->rowSizeFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
@@ -491,6 +558,90 @@ bool AnalyzerView::ensure_resources(
     resources->buttonFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
     resources->buttonFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
     resources_ = std::move(resources);
+    return true;
+}
+
+bool AnalyzerView::ensure_breadcrumb_layout(
+    render::GraphicsDevice& graphics,
+    const core::Language language,
+    const float clientHeightDip) {
+    if (resources_ == nullptr) {
+        return false;
+    }
+    const auto width = std::max(0.0F, layout_.breadcrumbBounds.right - layout_.breadcrumbBounds.left);
+    if (breadcrumbLabelWidths_.size() != breadcrumb_.items.size()
+        || breadcrumbLayoutWidth_ != width
+        || breadcrumbLayoutLanguage_ != language) {
+        auto* writeFactory = graphics.dwrite_factory();
+        if (writeFactory == nullptr) {
+            return false;
+        }
+        breadcrumbLabelWidths_.clear();
+        breadcrumbLabelWidths_.reserve(breadcrumb_.items.size());
+        for (std::size_t index = 0U; index < breadcrumb_.items.size(); ++index) {
+            const auto label = breadcrumb_.items[index].kind == BreadcrumbItemKind::Overview
+                ? core::get_string(language, core::StringId::DisksAndFolders)
+                : std::wstring_view(breadcrumb_.items[index].label);
+            Microsoft::WRL::ComPtr<IDWriteTextLayout> textLayout;
+            if (FAILED(writeFactory->CreateTextLayout(
+                    label.data(),
+                    static_cast<UINT32>(label.size()),
+                    resources_->breadcrumbFormat.Get(),
+                    4'096.0F,
+                    64.0F,
+                    &textLayout))) {
+                return false;
+            }
+            DWRITE_TEXT_METRICS metrics{};
+            if (FAILED(textLayout->GetMetrics(&metrics))) {
+                return false;
+            }
+            breadcrumbLabelWidths_.push_back(metrics.widthIncludingTrailingWhitespace);
+        }
+        breadcrumbLayout_ = layout_analyzer_breadcrumb(
+            breadcrumb_,
+            breadcrumbLabelWidths_,
+            layout_.breadcrumbBounds);
+        breadcrumbLayoutWidth_ = width;
+        breadcrumbLayoutLanguage_ = language;
+    }
+
+    breadcrumbFlyoutRows_.clear();
+    breadcrumbFlyoutBounds_ = {};
+    if (!breadcrumbOverflowOpen_
+        || !breadcrumbLayout_.ellipsis.has_value()
+        || breadcrumbLayout_.hiddenItemIndices.empty()) {
+        return true;
+    }
+
+    auto flyoutWidth = 220.0F;
+    for (const auto index : breadcrumbLayout_.hiddenItemIndices) {
+        if (index < breadcrumbLabelWidths_.size()) {
+            flyoutWidth = std::max(flyoutWidth, breadcrumbLabelWidths_[index] + 32.0F);
+        }
+    }
+    flyoutWidth = std::min(flyoutWidth, std::max(0.0F, layout_.header.right - 32.0F));
+    const auto left = std::clamp(
+        breadcrumbLayout_.ellipsis->bounds.left,
+        16.0F,
+        std::max(16.0F, layout_.header.right - 16.0F - flyoutWidth));
+    const auto top = layout_.breadcrumbBounds.bottom;
+    const auto availableHeight = std::max(0.0F, clientHeightDip - top - 16.0F);
+    const auto preferredHeight = 34.0F
+        * static_cast<float>(breadcrumbLayout_.hiddenItemIndices.size());
+    const auto panelHeight = std::min(preferredHeight, availableHeight);
+    const auto rowHeight = breadcrumbLayout_.hiddenItemIndices.empty()
+        ? 0.0F
+        : panelHeight / static_cast<float>(breadcrumbLayout_.hiddenItemIndices.size());
+    breadcrumbFlyoutBounds_ = {left, top, left + flyoutWidth, top + panelHeight};
+    breadcrumbFlyoutRows_.reserve(breadcrumbLayout_.hiddenItemIndices.size());
+    for (std::size_t row = 0U; row < breadcrumbLayout_.hiddenItemIndices.size(); ++row) {
+        const auto rowTop = top + rowHeight * static_cast<float>(row);
+        breadcrumbFlyoutRows_.push_back({
+            {left, rowTop, left + flyoutWidth, rowTop + rowHeight},
+            breadcrumbLayout_.hiddenItemIndices[row],
+        });
+    }
     return true;
 }
 
@@ -550,6 +701,9 @@ bool AnalyzerView::draw(
         return false;
     }
     layout_ = compute_analyzer_layout(widthDip, heightDip, sunburst_.depthRanges.size());
+    if (!ensure_breadcrumb_layout(graphics, language, heightDip)) {
+        return false;
+    }
     childListLayout_ = compute_analyzer_child_list_layout(
         layout_.detailsBounds,
         rankedChildren_.size(),
@@ -579,16 +733,41 @@ bool AnalyzerView::draw(
         heightDip);
     context->FillRectangle(to_d2d_rect(layout_.header), resources_->header.Get());
     context->FillRectangle(to_d2d_rect(layout_.actionBar), resources_->header.Get());
-    if (hoveredChrome_ == AnalyzerHitTarget::Back) {
+    if (hoveredChrome_ == AnalyzerHitTarget::Back && canNavigateBack_) {
         context->FillRoundedRectangle(
             D2D1::RoundedRect(to_d2d_rect(layout_.backButton), 5.0F, 5.0F),
             resources_->hover.Get());
     }
+    if (hoveredChrome_ == AnalyzerHitTarget::Forward && canNavigateForward_) {
+        context->FillRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(layout_.forwardButton), 5.0F, 5.0F),
+            resources_->hover.Get());
+    }
+    auto* backBrush = canNavigateBack_ ? resources_->primary.Get() : resources_->secondary.Get();
     const auto backCenterY = (layout_.backButton.top + layout_.backButton.bottom) * 0.5F;
     context->DrawLine(
         {layout_.backButton.left + 27.0F, backCenterY - 9.0F},
         {layout_.backButton.left + 18.0F, backCenterY},
-        resources_->primary.Get(),
+        backBrush,
+        2.0F);
+    context->DrawLine(
+        {layout_.backButton.left + 18.0F, backCenterY},
+        {layout_.backButton.left + 27.0F, backCenterY + 9.0F},
+        backBrush,
+        2.0F);
+    auto* forwardBrush = canNavigateForward_
+        ? resources_->primary.Get()
+        : resources_->secondary.Get();
+    const auto forwardCenterY = (layout_.forwardButton.top + layout_.forwardButton.bottom) * 0.5F;
+    context->DrawLine(
+        {layout_.forwardButton.left + 15.0F, forwardCenterY - 9.0F},
+        {layout_.forwardButton.left + 24.0F, forwardCenterY},
+        forwardBrush,
+        2.0F);
+    context->DrawLine(
+        {layout_.forwardButton.left + 24.0F, forwardCenterY},
+        {layout_.forwardButton.left + 15.0F, forwardCenterY + 9.0F},
+        forwardBrush,
         2.0F);
 
     const auto drawWindowButtonBackground = [&](const AnalyzerRectF& bounds, const AnalyzerHitTarget target) {
@@ -632,12 +811,6 @@ bool AnalyzerView::draw(
         {closeCenter.x - 5.0F, closeCenter.y + 5.0F},
         resources_->primary.Get(),
         1.5F);
-    context->DrawLine(
-        {layout_.backButton.left + 18.0F, backCenterY},
-        {layout_.backButton.left + 27.0F, backCenterY + 9.0F},
-        resources_->primary.Get(),
-        2.0F);
-
     const auto drawText = [&](
                               const std::wstring_view text,
                               IDWriteTextFormat* format,
@@ -651,11 +824,67 @@ bool AnalyzerView::draw(
             brush,
             D2D1_DRAW_TEXT_OPTIONS_CLIP);
     };
-    drawText(
-        tree_->name(root_),
-        resources_->titleFormat.Get(),
-        layout_.titleBounds,
-        resources_->primary.Get());
+    const auto drawBreadcrumbSegment = [&](const BreadcrumbSegmentLayout& segment) {
+        if (segment.itemIndex >= breadcrumb_.items.size()) {
+            return;
+        }
+        const auto& item = breadcrumb_.items[segment.itemIndex];
+        const auto current = segment.itemIndex + 1U == breadcrumb_.items.size();
+        const auto hovered = hoveredBreadcrumbItem_ == segment.itemIndex;
+        auto* fill = hovered || pressedBreadcrumbItem_ == segment.itemIndex
+            ? resources_->hover.Get()
+            : resources_->surface.Get();
+        context->FillRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(segment.bounds), 4.0F, 4.0F),
+            fill);
+        context->DrawRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(segment.bounds), 4.0F, 4.0F),
+            current ? resources_->accent.Get() : resources_->border.Get(),
+            1.0F);
+        const auto label = item.kind == BreadcrumbItemKind::Overview
+            ? core::get_string(language, core::StringId::DisksAndFolders)
+            : std::wstring_view(item.label);
+        auto textBounds = segment.bounds;
+        textBounds.left += 12.0F;
+        textBounds.right = std::max(textBounds.left, textBounds.right - 16.0F);
+        drawText(
+            label,
+            resources_->breadcrumbFormat.Get(),
+            textBounds,
+            item.enabled ? resources_->primary.Get() : resources_->secondary.Get());
+        const auto chevronX = segment.bounds.right - 8.0F;
+        const auto centerY = (segment.bounds.top + segment.bounds.bottom) * 0.5F;
+        context->DrawLine(
+            {chevronX - 3.0F, centerY - 5.0F},
+            {chevronX + 1.0F, centerY},
+            resources_->border.Get(),
+            1.0F);
+        context->DrawLine(
+            {chevronX + 1.0F, centerY},
+            {chevronX - 3.0F, centerY + 5.0F},
+            resources_->border.Get(),
+            1.0F);
+    };
+    for (const auto& segment : breadcrumbLayout_.visible) {
+        drawBreadcrumbSegment(segment);
+    }
+    if (breadcrumbLayout_.ellipsis.has_value()) {
+        const auto& segment = *breadcrumbLayout_.ellipsis;
+        context->FillRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(segment.bounds), 4.0F, 4.0F),
+            breadcrumbEllipsisHovered_ || breadcrumbOverflowOpen_
+                ? resources_->hover.Get()
+                : resources_->surface.Get());
+        context->DrawRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(segment.bounds), 4.0F, 4.0F),
+            resources_->border.Get(),
+            1.0F);
+        drawText(
+            L"...",
+            resources_->breadcrumbFormat.Get(),
+            segment.bounds,
+            resources_->primary.Get());
+    }
 
     const auto drawActionButton = [&](
                                       const AnalyzerRectF& bounds,
@@ -885,6 +1114,32 @@ bool AnalyzerView::draw(
             dragVisual.sizeBounds,
             resources_->secondary.Get());
     }
+    if (breadcrumbOverflowOpen_ && !breadcrumbFlyoutRows_.empty()) {
+        context->FillRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(breadcrumbFlyoutBounds_), 5.0F, 5.0F),
+            resources_->panel.Get());
+        context->DrawRoundedRectangle(
+            D2D1::RoundedRect(to_d2d_rect(breadcrumbFlyoutBounds_), 5.0F, 5.0F),
+            resources_->border.Get(),
+            1.0F);
+        for (const auto& row : breadcrumbFlyoutRows_) {
+            if (row.itemIndex >= breadcrumb_.items.size()) {
+                continue;
+            }
+            const auto& item = breadcrumb_.items[row.itemIndex];
+            if (hoveredBreadcrumbItem_ == row.itemIndex) {
+                context->FillRectangle(to_d2d_rect(row.bounds), resources_->hover.Get());
+            }
+            auto textBounds = row.bounds;
+            textBounds.left += 14.0F;
+            textBounds.right -= 14.0F;
+            drawText(
+                item.label,
+                resources_->breadcrumbFormat.Get(),
+                textBounds,
+                item.enabled ? resources_->primary.Get() : resources_->secondary.Get());
+        }
+    }
     return true;
 }
 
@@ -900,16 +1155,55 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
             contains_point(reviewLayout_.summary, xDip, yDip));
         dragChanged = dragChanged || (reviewDrag_.active() && pointerChanged);
     }
+    auto overflowChanged = false;
+    std::optional<std::size_t> nextBreadcrumbItem;
+    auto nextEllipsisHovered = false;
+    auto pointerOverFlyout = false;
+    if (breadcrumbOverflowOpen_) {
+        for (const auto& row : breadcrumbFlyoutRows_) {
+            if (contains(row.bounds, xDip, yDip)) {
+                pointerOverFlyout = true;
+                nextBreadcrumbItem = row.itemIndex;
+                break;
+            }
+        }
+    }
+    if (!pointerOverFlyout) {
+        const auto breadcrumbHit = hit_test_analyzer_breadcrumb(
+            breadcrumbLayout_,
+            xDip,
+            yDip);
+        if (breadcrumbHit.has_value()) {
+            if (breadcrumbHit->kind == BreadcrumbHitKind::Item) {
+                nextBreadcrumbItem = breadcrumbHit->itemIndex;
+            } else {
+                nextEllipsisHovered = true;
+            }
+        }
+    }
+    if (breadcrumbOverflowOpen_
+        && !breadcrumbFlyoutRows_.empty()
+        && !contains(layout_.breadcrumbBounds, xDip, yDip)
+        && !contains(breadcrumbFlyoutBounds_, xDip, yDip)) {
+        overflowChanged = dismiss_breadcrumb_overflow();
+        pointerOverFlyout = false;
+        nextBreadcrumbItem.reset();
+        nextEllipsisHovered = false;
+    }
+    const auto pointerOverBreadcrumb = contains(layout_.breadcrumbBounds, xDip, yDip)
+        || pointerOverFlyout;
     const auto pointerOverReviewPanel = reviewPanelOpen_
         && contains_point(reviewLayout_.panel, xDip, yDip);
     const auto nextReviewPanelOpen = !recycleInProgress_ && !reviewNodes_.empty()
+        && !pointerOverBreadcrumb
         && (contains_point(reviewLayout_.summary, xDip, yDip)
             || pointerOverReviewPanel);
     const auto target = hit_test_analyzer_layout(layout_, xDip, yDip);
-    const auto nextChild = pointerOverReviewPanel
+    const auto nextChild = pointerOverReviewPanel || pointerOverBreadcrumb
         ? std::optional<std::size_t>{}
         : hit_test_analyzer_child_rows(childListLayout_, xDip, yDip);
-    const auto nextChrome = target == AnalyzerHitTarget::Back
+    const auto nextChrome = (target == AnalyzerHitTarget::Back && canNavigateBack_)
+            || (target == AnalyzerHitTarget::Forward && canNavigateForward_)
             || target == AnalyzerHitTarget::MinimizeWindow
             || target == AnalyzerHitTarget::MaximizeWindow
             || target == AnalyzerHitTarget::CloseWindow
@@ -920,7 +1214,7 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
         ? target
         : AnalyzerHitTarget::None;
     std::optional<core::SunburstHit> nextSegment;
-    if (!pointerOverReviewPanel && !nextChild.has_value()
+    if (!pointerOverReviewPanel && !pointerOverBreadcrumb && !nextChild.has_value()
         && target == AnalyzerHitTarget::Chart) {
         nextSegment = core::hit_test_sunburst(
             sunburst_,
@@ -932,12 +1226,16 @@ bool AnalyzerView::pointer_moved(const float xDip, const float yDip) {
         && (!hoveredSegment_.has_value()
             || hoveredSegment_->segmentIndex == nextSegment->segmentIndex);
     if (hoveredChrome_ == nextChrome && sameSegment && hoveredChild_ == nextChild
+        && hoveredBreadcrumbItem_ == nextBreadcrumbItem
+        && breadcrumbEllipsisHovered_ == nextEllipsisHovered
         && reviewPanelOpen_ == nextReviewPanelOpen) {
-        return dragChanged;
+        return dragChanged || overflowChanged;
     }
     hoveredChrome_ = nextChrome;
     hoveredSegment_ = nextSegment;
     hoveredChild_ = nextChild;
+    hoveredBreadcrumbItem_ = nextBreadcrumbItem;
+    breadcrumbEllipsisHovered_ = nextEllipsisHovered;
     reviewPanelOpen_ = nextReviewPanelOpen;
     return true;
 }
@@ -947,12 +1245,21 @@ bool AnalyzerView::pointer_left() {
     if (hoveredChrome_ == AnalyzerHitTarget::None
         && !hoveredSegment_.has_value()
         && !hoveredChild_.has_value()
+        && !hoveredBreadcrumbItem_.has_value()
+        && !breadcrumbEllipsisHovered_
+        && !breadcrumbOverflowOpen_
         && !reviewPanelOpen_) {
         return dragChanged;
     }
     hoveredChrome_ = AnalyzerHitTarget::None;
     hoveredSegment_.reset();
     hoveredChild_.reset();
+    hoveredBreadcrumbItem_.reset();
+    pressedBreadcrumbItem_.reset();
+    breadcrumbEllipsisHovered_ = false;
+    breadcrumbOverflowOpen_ = false;
+    breadcrumbFlyoutRows_.clear();
+    breadcrumbFlyoutBounds_ = {};
     reviewPanelOpen_ = false;
     return true;
 }
@@ -1001,6 +1308,26 @@ void AnalyzerView::pointer_down(const float xDip, const float yDip) {
     (void)cancel_drag();
     pendingCommand_.reset();
     (void)pointer_moved(xDip, yDip);
+    const auto breadcrumbHit = hit_test_analyzer_breadcrumb(
+        breadcrumbLayout_,
+        xDip,
+        yDip);
+    if (breadcrumbHit.has_value()) {
+        pressedBreadcrumbItem_ = breadcrumbHit->kind == BreadcrumbHitKind::Item
+            ? std::optional<std::size_t>{breadcrumbHit->itemIndex}
+            : std::nullopt;
+        return;
+    }
+    for (const auto& row : breadcrumbFlyoutRows_) {
+        if (contains(row.bounds, xDip, yDip)) {
+            pressedBreadcrumbItem_ = row.itemIndex;
+            return;
+        }
+    }
+    const auto chrome = hit_test_analyzer_layout(layout_, xDip, yDip);
+    if (chrome == AnalyzerHitTarget::Back || chrome == AnalyzerHitTarget::Forward) {
+        return;
+    }
     if (recycleInProgress_ || tree_ == nullptr
         || (reviewPanelOpen_ && contains_point(reviewLayout_.panel, xDip, yDip))) {
         return;
@@ -1035,6 +1362,7 @@ void AnalyzerView::pointer_down(const float xDip, const float yDip) {
 void AnalyzerView::pointer_released(const float xDip, const float yDip) {
     if (!reviewDrag_.pending() && !reviewDrag_.active()) {
         pointer_pressed(xDip, yDip);
+        pressedBreadcrumbItem_.reset();
         return;
     }
 
@@ -1067,6 +1395,73 @@ bool AnalyzerView::drag_active() const noexcept {
 }
 
 void AnalyzerView::pointer_pressed(const float xDip, const float yDip) {
+    const auto target = hit_test_analyzer_layout(layout_, xDip, yDip);
+    if (target == AnalyzerHitTarget::Back) {
+        pendingCommand_ = canNavigateBack_
+            ? std::optional<AnalyzerCommand>(
+                AnalyzerCommand{AnalyzerCommandKind::NavigateBack, core::invalid_node})
+            : std::nullopt;
+        return;
+    }
+    if (target == AnalyzerHitTarget::Forward) {
+        pendingCommand_ = canNavigateForward_
+            ? std::optional<AnalyzerCommand>(
+                AnalyzerCommand{AnalyzerCommandKind::NavigateForward, core::invalid_node})
+            : std::nullopt;
+        return;
+    }
+    auto activateBreadcrumb = [&](const std::size_t itemIndex) {
+        if (itemIndex >= breadcrumb_.items.size()) {
+            pendingCommand_.reset();
+            return;
+        }
+        const auto& item = breadcrumb_.items[itemIndex];
+        if (!item.enabled) {
+            pendingCommand_.reset();
+        } else if (item.kind == BreadcrumbItemKind::Overview) {
+            pendingCommand_ = AnalyzerCommand{
+                AnalyzerCommandKind::ReturnToOverview,
+                core::invalid_node,
+            };
+            breadcrumbOverflowOpen_ = false;
+        } else if (item.kind == BreadcrumbItemKind::ScanNode) {
+            pendingCommand_ = AnalyzerCommand{
+                AnalyzerCommandKind::NavigateBreadcrumb,
+                item.node,
+            };
+            breadcrumbOverflowOpen_ = false;
+        } else {
+            pendingCommand_.reset();
+        }
+    };
+    for (const auto& row : breadcrumbFlyoutRows_) {
+        if (contains(row.bounds, xDip, yDip)) {
+            activateBreadcrumb(row.itemIndex);
+            return;
+        }
+    }
+    if (const auto breadcrumbHit = hit_test_analyzer_breadcrumb(
+            breadcrumbLayout_,
+            xDip,
+            yDip);
+        breadcrumbHit.has_value()) {
+        if (breadcrumbHit->kind == BreadcrumbHitKind::Ellipsis) {
+            breadcrumbOverflowOpen_ = !breadcrumbOverflowOpen_;
+            hoveredBreadcrumbItem_.reset();
+            pendingCommand_ = AnalyzerCommand{
+                AnalyzerCommandKind::OpenBreadcrumbOverflow,
+                core::invalid_node,
+            };
+        } else {
+            activateBreadcrumb(breadcrumbHit->itemIndex);
+        }
+        return;
+    }
+    if (breadcrumbOverflowOpen_) {
+        (void)dismiss_breadcrumb_overflow();
+        pendingCommand_.reset();
+        return;
+    }
     if (reviewPanelOpen_ && contains_point(reviewLayout_.panel, xDip, yDip)) {
         pendingCommand_.reset();
         return;
@@ -1082,16 +1477,6 @@ void AnalyzerView::pointer_pressed(const float xDip, const float yDip) {
                               core::ScanNodeFlags::Directory)
             ? AnalyzerCommand{AnalyzerCommandKind::NavigateToNode, nodeIndex}
             : AnalyzerCommand{AnalyzerCommandKind::SelectNode, nodeIndex};
-        return;
-    }
-    const auto target = hit_test_analyzer_layout(layout_, xDip, yDip);
-    if (target == AnalyzerHitTarget::Back) {
-        const auto parent = tree_ != nullptr && root_ < tree_->nodes().size()
-            ? tree_->node(root_).parent
-            : core::invalid_node;
-        pendingCommand_ = parent == core::invalid_node
-            ? AnalyzerCommand{AnalyzerCommandKind::ReturnToOverview, core::invalid_node}
-            : AnalyzerCommand{AnalyzerCommandKind::NavigateToParent, parent};
         return;
     }
     if (target == AnalyzerHitTarget::MinimizeWindow) {

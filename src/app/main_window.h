@@ -44,6 +44,10 @@ private:
     void poll_scan_session();
     void poll_recycle_session();
     void finish_recycle_success();
+    void sync_analyzer_navigation_chrome();
+    [[nodiscard]] bool create_breadcrumb_tooltip();
+    void update_breadcrumb_tooltip();
+    void hide_breadcrumb_tooltip() noexcept;
     void show_settings_menu();
     void apply_appearance();
     [[nodiscard]] bool dark_theme_enabled() const noexcept;
@@ -57,6 +61,7 @@ private:
         LPARAM lParam);
 
     HWND window_ = nullptr;
+    HWND breadcrumbTooltip_ = nullptr;
     render::GraphicsDevice graphics_;
     DiskOverview overview_;
     AnalyzerView analyzer_;
@@ -69,6 +74,7 @@ private:
     std::optional<platform::windows::ScanResult> completedScan_;
     std::optional<ScanUiTarget> completedScanTarget_;
     AppearanceSettings appearance_{core::ThemeMode::System, core::Language::English};
+    std::wstring breadcrumbTooltipText_;
     bool trackingMouse_ = false;
 };
 

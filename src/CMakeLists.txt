@@ -114,6 +114,7 @@ target_link_libraries(
         diskbloom_render
         diskbloom_scan
     PRIVATE
+        comctl32
         dwmapi
         shell32
 )

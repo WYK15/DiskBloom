@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app/analyzer_breadcrumb.h"
 #include "app/analyzer_geometry.h"
 #include "app/review_collector_interaction.h"
 #include "core/language.h"
@@ -23,6 +24,8 @@ namespace diskbloom::app {
 struct AnalyzerLayout {
     AnalyzerRectF header;
     AnalyzerRectF backButton;
+    AnalyzerRectF forwardButton;
+    AnalyzerRectF breadcrumbBounds;
     AnalyzerRectF minimizeButton;
     AnalyzerRectF maximizeButton;
     AnalyzerRectF closeButton;
@@ -69,6 +72,7 @@ struct AnalyzerChildListLayout {
 enum class AnalyzerHitTarget {
     None,
     Back,
+    Forward,
     Chart,
     MinimizeWindow,
     MaximizeWindow,
@@ -122,6 +126,10 @@ public:
 
     void set_tree(const core::ScanTree* tree, core::NodeIndex root);
     [[nodiscard]] bool set_root(core::NodeIndex root);
+    void set_breadcrumb(AnalyzerBreadcrumbModel model);
+    void set_history_availability(bool canBack, bool canForward) noexcept;
+    [[nodiscard]] std::wstring_view hovered_breadcrumb_path() const noexcept;
+    [[nodiscard]] bool dismiss_breadcrumb_overflow() noexcept;
     void set_selected_node(core::NodeIndex node) noexcept;
     void set_review_summary(std::size_t itemCount, std::uint64_t totalBytes) noexcept;
     void set_review_nodes(std::span<const core::NodeIndex> nodes);
@@ -156,6 +164,10 @@ private:
         const core::ThemeTokens& theme,
         core::Language language);
     [[nodiscard]] bool ensure_geometry();
+    [[nodiscard]] bool ensure_breadcrumb_layout(
+        render::GraphicsDevice& graphics,
+        core::Language language,
+        float clientHeightDip);
     void rebuild_layout();
 
     const core::ScanTree* tree_ = nullptr;
@@ -165,6 +177,19 @@ private:
     std::vector<core::RankedChild> rankedChildren_;
     std::vector<std::uint8_t> childPaletteIndices_;
     AnalyzerLayout layout_{};
+    AnalyzerBreadcrumbModel breadcrumb_;
+    AnalyzerBreadcrumbLayout breadcrumbLayout_;
+    std::vector<float> breadcrumbLabelWidths_;
+    std::vector<BreadcrumbSegmentLayout> breadcrumbFlyoutRows_;
+    AnalyzerRectF breadcrumbFlyoutBounds_{};
+    std::optional<std::size_t> hoveredBreadcrumbItem_;
+    std::optional<std::size_t> pressedBreadcrumbItem_;
+    float breadcrumbLayoutWidth_ = -1.0F;
+    core::Language breadcrumbLayoutLanguage_ = core::Language::English;
+    bool breadcrumbEllipsisHovered_ = false;
+    bool breadcrumbOverflowOpen_ = false;
+    bool canNavigateBack_ = false;
+    bool canNavigateForward_ = false;
     AnalyzerChildListLayout childListLayout_{};
     std::optional<core::SunburstHit> hoveredSegment_;
     std::optional<std::size_t> hoveredChild_;

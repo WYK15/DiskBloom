@@ -59,6 +59,50 @@ int main() {
 
     diskbloom::app::AnalyzerView analyzer;
     analyzer.set_tree(&tree, root);
+    diskbloom::app::AnalyzerBreadcrumbModel breadcrumb;
+    breadcrumb.items = {
+        {.kind = diskbloom::app::BreadcrumbItemKind::Overview, .enabled = true},
+        {
+            .kind = diskbloom::app::BreadcrumbItemKind::UnscannedPrefix,
+            .label = L"D:\\",
+            .absolutePath = L"D:\\",
+        },
+        {
+            .kind = diskbloom::app::BreadcrumbItemKind::UnscannedPrefix,
+            .label = L"workspace-with-a-long-name",
+            .absolutePath = L"D:\\workspace-with-a-long-name",
+        },
+        {
+            .kind = diskbloom::app::BreadcrumbItemKind::ScanNode,
+            .node = root,
+            .label = L"project-with-a-long-name",
+            .absolutePath = L"D:\\workspace-with-a-long-name\\project-with-a-long-name",
+            .enabled = true,
+        },
+        {
+            .kind = diskbloom::app::BreadcrumbItemKind::ScanNode,
+            .node = folder,
+            .label = L"source-with-a-long-name",
+            .absolutePath = L"D:\\workspace-with-a-long-name\\project-with-a-long-name\\source",
+            .enabled = true,
+        },
+        {
+            .kind = diskbloom::app::BreadcrumbItemKind::ScanNode,
+            .node = root,
+            .label = L"app-with-a-long-name",
+            .absolutePath = L"D:\\workspace-with-a-long-name\\project-with-a-long-name\\source\\app",
+            .enabled = true,
+        },
+        {
+            .kind = diskbloom::app::BreadcrumbItemKind::ScanNode,
+            .node = folder,
+            .label = L"assets-with-a-long-name",
+            .absolutePath = L"D:\\workspace-with-a-long-name\\project-with-a-long-name\\source\\app\\assets",
+            .enabled = true,
+        },
+    };
+    analyzer.set_breadcrumb(std::move(breadcrumb));
+    analyzer.set_history_availability(true, false);
     analyzer.set_review_summary(reviewNodes.size(), tree.node(root).logicalSize);
     analyzer.set_review_nodes(reviewNodes);
     const auto lightTheme = diskbloom::core::make_theme(false);
@@ -76,6 +120,68 @@ int main() {
     if (!drawAnalyzer(lightTheme, diskbloom::core::Language::English)) {
         DestroyWindow(window);
         return 3;
+    }
+
+    analyzer.pointer_pressed(32.0F, 32.0F);
+    auto navigationCommand = analyzer.take_command();
+    if (!navigationCommand.has_value()
+        || navigationCommand->kind != diskbloom::app::AnalyzerCommandKind::NavigateBack) {
+        DestroyWindow(window);
+        return 52;
+    }
+    analyzer.pointer_pressed(76.0F, 32.0F);
+    if (analyzer.take_command().has_value()) {
+        DestroyWindow(window);
+        return 53;
+    }
+    analyzer.set_history_availability(true, true);
+    analyzer.pointer_pressed(76.0F, 32.0F);
+    navigationCommand = analyzer.take_command();
+    if (!navigationCommand.has_value()
+        || navigationCommand->kind != diskbloom::app::AnalyzerCommandKind::NavigateForward) {
+        DestroyWindow(window);
+        return 54;
+    }
+    analyzer.pointer_pressed(110.0F, 32.0F);
+    navigationCommand = analyzer.take_command();
+    if (!navigationCommand.has_value()
+        || navigationCommand->kind != diskbloom::app::AnalyzerCommandKind::ReturnToOverview) {
+        DestroyWindow(window);
+        return 55;
+    }
+
+    auto ellipsisX = -1.0F;
+    for (auto x = 108.0F; x < 650.0F; x += 1.0F) {
+        analyzer.pointer_pressed(x, 32.0F);
+        const auto command = analyzer.take_command();
+        if (command.has_value()
+            && command->kind == diskbloom::app::AnalyzerCommandKind::OpenBreadcrumbOverflow) {
+            ellipsisX = x;
+            break;
+        }
+    }
+    if (ellipsisX < 0.0F
+        || !drawAnalyzer(lightTheme, diskbloom::core::Language::English)) {
+        DestroyWindow(window);
+        return 56;
+    }
+    (void)analyzer.pointer_moved(ellipsisX + 4.0F, 79.0F);
+    if (analyzer.hovered_breadcrumb_path() != L"D:\\") {
+        DestroyWindow(window);
+        return 57;
+    }
+    analyzer.pointer_pressed(ellipsisX + 4.0F, 79.0F);
+    if (analyzer.take_command().has_value()) {
+        DestroyWindow(window);
+        return 58;
+    }
+    analyzer.pointer_pressed(ellipsisX + 4.0F, 147.0F);
+    navigationCommand = analyzer.take_command();
+    if (!navigationCommand.has_value()
+        || navigationCommand->kind != diskbloom::app::AnalyzerCommandKind::NavigateBreadcrumb
+        || navigationCommand->node != folder) {
+        DestroyWindow(window);
+        return 59;
     }
 
     const auto analyzerLayout = diskbloom::app::compute_analyzer_layout(800.0F, 600.0F, 2U);

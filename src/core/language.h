@@ -42,6 +42,7 @@ enum class StringId : std::size_t {
     English,
     SimplifiedChinese,
     Collected,
+    DisksAndFolders,
     Count,
 };
 

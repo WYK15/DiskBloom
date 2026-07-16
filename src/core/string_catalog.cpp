@@ -41,6 +41,7 @@ constexpr std::array<std::wstring_view, string_count> english{
     L"English",
     L"Simplified Chinese",
     L"collected",
+    L"Disks and Folders",
 };
 
 constexpr std::array<std::wstring_view, string_count> simplified_chinese{
@@ -76,6 +77,7 @@ constexpr std::array<std::wstring_view, string_count> simplified_chinese{
     L"\u82f1\u6587",
     L"\u7b80\u4f53\u4e2d\u6587",
     L"\u5df2\u6536\u96c6",
+    L"\u78c1\u76d8\u548c\u6587\u4ef6\u5939",
 };
 
 static_assert(english.size() == string_count);

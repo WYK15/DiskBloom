@@ -10,6 +10,7 @@
 #include "resources/resource.h"
 
 #include <Windowsx.h>
+#include <CommCtrl.h>
 #include <dwmapi.h>
 
 #include <algorithm>
@@ -151,6 +152,140 @@ bool MainWindow::render_frame() {
     return SUCCEEDED(graphics_.end_draw());
 }
 
+COLORREF to_color_ref(const core::Rgba color) noexcept {
+    const auto channel = [](const float value) {
+        return static_cast<BYTE>(std::clamp(value, 0.0F, 1.0F) * 255.0F + 0.5F);
+    };
+    return RGB(channel(color.r), channel(color.g), channel(color.b));
+}
+
+void MainWindow::sync_analyzer_navigation_chrome() {
+    analyzer_.set_history_availability(
+        navigation_.history.can_back(),
+        navigation_.history.can_forward());
+    if (!completedScan_.has_value() || navigation_.view != MainContentView::Analyzer) {
+        analyzer_.set_breadcrumb({});
+        hide_breadcrumb_tooltip();
+        return;
+    }
+    analyzer_.set_breadcrumb(build_analyzer_breadcrumb(
+        completedScan_->tree,
+        0U,
+        navigation_.root,
+        completedScan_->rootPath));
+    hide_breadcrumb_tooltip();
+}
+
+bool MainWindow::create_breadcrumb_tooltip() {
+    INITCOMMONCONTROLSEX controls{
+        .dwSize = sizeof(INITCOMMONCONTROLSEX),
+        .dwICC = ICC_WIN95_CLASSES,
+    };
+    (void)InitCommonControlsEx(&controls);
+    breadcrumbTooltip_ = CreateWindowExW(
+        WS_EX_TOPMOST,
+        TOOLTIPS_CLASSW,
+        nullptr,
+        WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        window_,
+        nullptr,
+        GetModuleHandleW(nullptr),
+        nullptr);
+    if (breadcrumbTooltip_ == nullptr) {
+        return false;
+    }
+    TOOLINFOW tool{
+        .cbSize = sizeof(TOOLINFOW),
+        .uFlags = TTF_TRACK | TTF_ABSOLUTE,
+        .hwnd = window_,
+        .uId = 1U,
+        .rect = {0, 0, 1, 1},
+        .lpszText = const_cast<wchar_t*>(L""),
+    };
+    const auto added = SendMessageW(
+        breadcrumbTooltip_,
+        TTM_ADDTOOLW,
+        0U,
+        reinterpret_cast<LPARAM>(&tool)) != FALSE;
+    if (!added) {
+        DestroyWindow(breadcrumbTooltip_);
+        breadcrumbTooltip_ = nullptr;
+    }
+    SendMessageW(breadcrumbTooltip_, TTM_SETMAXTIPWIDTH, 0U, 640);
+    return added;
+}
+
+void MainWindow::update_breadcrumb_tooltip() {
+    if (breadcrumbTooltip_ == nullptr || navigation_.view != MainContentView::Analyzer) {
+        return;
+    }
+    const auto path = analyzer_.hovered_breadcrumb_path();
+    if (path.empty()) {
+        hide_breadcrumb_tooltip();
+        return;
+    }
+    breadcrumbTooltipText_.assign(path);
+    TOOLINFOW tool{
+        .cbSize = sizeof(TOOLINFOW),
+        .uFlags = TTF_TRACK | TTF_ABSOLUTE,
+        .hwnd = window_,
+        .uId = 1U,
+        .lpszText = breadcrumbTooltipText_.data(),
+    };
+    SendMessageW(
+        breadcrumbTooltip_,
+        TTM_UPDATETIPTEXTW,
+        0U,
+        reinterpret_cast<LPARAM>(&tool));
+    POINT cursor{};
+    GetCursorPos(&cursor);
+    auto clientCursor = cursor;
+    ScreenToClient(window_, &clientCursor);
+    tool.rect = {
+        clientCursor.x - 1,
+        clientCursor.y - 1,
+        clientCursor.x + 2,
+        clientCursor.y + 2,
+    };
+    SendMessageW(
+        breadcrumbTooltip_,
+        TTM_NEWTOOLRECTW,
+        0U,
+        reinterpret_cast<LPARAM>(&tool));
+    SendMessageW(
+        breadcrumbTooltip_,
+        TTM_TRACKPOSITION,
+        0U,
+        MAKELPARAM(cursor.x + 12, cursor.y + 20));
+    SendMessageW(
+        breadcrumbTooltip_,
+        TTM_TRACKACTIVATE,
+        TRUE,
+        reinterpret_cast<LPARAM>(&tool));
+}
+
+void MainWindow::hide_breadcrumb_tooltip() noexcept {
+    if (breadcrumbTooltip_ == nullptr) {
+        return;
+    }
+    TOOLINFOW tool{
+        .cbSize = sizeof(TOOLINFOW),
+        .uFlags = TTF_TRACK | TTF_ABSOLUTE,
+        .hwnd = window_,
+        .uId = 1U,
+    };
+    SendMessageW(
+        breadcrumbTooltip_,
+        TTM_TRACKACTIVATE,
+        FALSE,
+        reinterpret_cast<LPARAM>(&tool));
+    breadcrumbTooltipText_.clear();
+}
+
 void MainWindow::dispatch_analyzer_command() {
     if (const auto command = analyzer_.take_command(); command.has_value()) {
         handle_analyzer_command(*command);
@@ -241,6 +376,7 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
     case AnalyzerCommandKind::SelectNode:
         break;
     case AnalyzerCommandKind::OpenBreadcrumbOverflow:
+        InvalidateRect(window_, nullptr, FALSE);
         return;
     }
     if (!completedScan_.has_value()) {
@@ -248,6 +384,7 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
     }
     const auto previousRoot = navigation_.root;
     const auto previousSelected = navigation_.selected;
+    const auto previousView = navigation_.view;
     if (!apply_analyzer_command(navigation_, completedScan_->tree, command)) {
         return;
     }
@@ -263,6 +400,12 @@ void MainWindow::handle_analyzer_command(const AnalyzerCommand& command) {
             AnalyzerInputTransition::PointerLeft,
             analyzer_.drag_pending(),
             GetCapture() == window_));
+    }
+    if (navigation_.root != previousRoot
+        || navigation_.view != previousView
+        || command.kind == AnalyzerCommandKind::NavigateBack
+        || command.kind == AnalyzerCommandKind::NavigateForward) {
+        sync_analyzer_navigation_chrome();
     }
     InvalidateRect(window_, nullptr, FALSE);
 }
@@ -523,6 +666,7 @@ void MainWindow::poll_scan_session() {
             if (!completedScan_->tree.nodes().empty()
                 && open_analyzer(navigation_, completedScan_->tree, 0U)) {
                 analyzer_.set_tree(&completedScan_->tree, 0U);
+                sync_analyzer_navigation_chrome();
             }
         }
         KillTimer(window_, scan_timer_id);
@@ -635,6 +779,19 @@ void MainWindow::apply_appearance() {
         DWMWA_WINDOW_CORNER_PREFERENCE,
         &corners,
         sizeof(corners));
+    if (breadcrumbTooltip_ != nullptr) {
+        const auto theme = core::make_theme(dark != FALSE);
+        SendMessageW(
+            breadcrumbTooltip_,
+            TTM_SETTIPBKCOLOR,
+            to_color_ref(theme.alternateRow),
+            0U);
+        SendMessageW(
+            breadcrumbTooltip_,
+            TTM_SETTIPTEXTCOLOR,
+            to_color_ref(theme.primaryText),
+            0U);
+    }
 }
 
 bool MainWindow::dark_theme_enabled() const noexcept {
@@ -659,6 +816,9 @@ LRESULT MainWindow::handle_message(
     switch (message) {
     case WM_CREATE:
         if (!graphics_.initialize(window_)) {
+            return -1;
+        }
+        if (!create_breadcrumb_tooltip()) {
             return -1;
         }
         volumes_ = platform::windows::enumerate_volumes();
@@ -713,9 +873,10 @@ LRESULT MainWindow::handle_message(
         const auto x = pixels_to_dip(client_point.x);
         const auto y = pixels_to_dip(client_point.y);
         const auto width = pixels_to_dip(client.right - client.left);
-        const auto analyzer_back = navigation_.view == MainContentView::Analyzer
-            && x < 76.0F;
-        if (y < 76.0F && x < width - 138.0F && !analyzer_back) {
+        const auto analyzerHeaderControl = navigation_.view == MainContentView::Analyzer
+            && (x < 104.0F
+                || (x >= 108.0F && x < width - 150.0F && y >= 8.0F && y < 56.0F));
+        if (y < 76.0F && x < width - 138.0F && !analyzerHeaderControl) {
             return HTCAPTION;
         }
         return HTCLIENT;
@@ -765,6 +926,7 @@ LRESULT MainWindow::handle_message(
         if (changed) {
             InvalidateRect(window_, nullptr, FALSE);
         }
+        update_breadcrumb_tooltip();
         return 0;
     }
 
@@ -782,6 +944,7 @@ LRESULT MainWindow::handle_message(
         if (changed) {
             InvalidateRect(window_, nullptr, FALSE);
         }
+        hide_breadcrumb_tooltip();
         return 0;
     }
 
@@ -842,6 +1005,11 @@ LRESULT MainWindow::handle_message(
         return 0;
 
     case WM_KEYDOWN:
+        if (wParam == VK_ESCAPE && analyzer_.dismiss_breadcrumb_overflow()) {
+            hide_breadcrumb_tooltip();
+            InvalidateRect(window_, nullptr, FALSE);
+            return 0;
+        }
         if (wParam == VK_F10) {
             show_settings_menu();
             return 0;
@@ -875,6 +1043,10 @@ LRESULT MainWindow::handle_message(
         KillTimer(window_, recycle_timer_id);
         scanSession_.reset();
         recycleSession_.reset();
+        if (breadcrumbTooltip_ != nullptr) {
+            DestroyWindow(breadcrumbTooltip_);
+            breadcrumbTooltip_ = nullptr;
+        }
         graphics_.discard_device_resources();
         PostQuitMessage(0);
         return 0;

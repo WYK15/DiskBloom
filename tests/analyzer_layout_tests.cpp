@@ -38,6 +38,8 @@ TEST_CASE(analyzer_layout_keeps_chart_and_details_inside_supported_viewports) {
         const AnalyzerRectF window{0.0F, 0.0F, viewport[0], viewport[1]};
         CHECK(inside(layout.header, window));
         CHECK(inside(layout.backButton, layout.header));
+        CHECK(inside(layout.forwardButton, layout.header));
+        CHECK(inside(layout.breadcrumbBounds, layout.header));
         CHECK(inside(layout.minimizeButton, layout.header));
         CHECK(inside(layout.maximizeButton, layout.header));
         CHECK(inside(layout.closeButton, layout.header));
@@ -52,6 +54,9 @@ TEST_CASE(analyzer_layout_keeps_chart_and_details_inside_supported_viewports) {
         CHECK(!overlaps(layout.reviewButton, layout.addReviewButton));
         CHECK(!overlaps(layout.addReviewButton, layout.previewButton));
         CHECK(!overlaps(layout.previewButton, layout.revealButton));
+        CHECK(!overlaps(layout.backButton, layout.forwardButton));
+        CHECK(!overlaps(layout.forwardButton, layout.breadcrumbBounds));
+        CHECK(!overlaps(layout.breadcrumbBounds, layout.minimizeButton));
         auto collector = compute_review_collector_layout(
             layout.actionBar,
             viewport[0],
