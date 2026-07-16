@@ -136,12 +136,19 @@ stable at **11,879,453**. This median is the baseline for future comparisons on
 this host and toolchain; a different host or compiler requires a new three-run
 baseline before drawing a regression conclusion.
 
+Correctness gate: a run of exactly **1,000,000 iterations must produce checksum
+11,879,453**. The benchmark exits nonzero when that deterministic checksum
+changes, even if the changed checksum is itself nonzero, and CTest verifies the
+canonical checksum in the benchmark output. Any intentional workload change
+must update this gate and record a new same-host baseline in the same change.
+
 ## Review Collector Regression And Visual QA
 
 The full Debug and Release builds completed successfully on 2026-07-16. CTest
-passed **7/7 targets in Debug** and **7/7 targets in Release**, including the
-hidden-window Direct3D/Direct2D analyzer render smoke test and the four app smoke
-targets for dark/light and en-US/zh-CN.
+passed **8/8 targets in Debug** and **8/8 targets in Release**, including the
+collector checksum regression gate, hidden-window Direct3D/Direct2D analyzer
+render smoke test, and the four app smoke targets for dark/light and
+en-US/zh-CN.
 
 Checks performed in the visible Release application:
 

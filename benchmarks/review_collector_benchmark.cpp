@@ -11,6 +11,7 @@
 namespace {
 
 constexpr std::size_t default_iteration_count = 1'000'000U;
+constexpr std::uint64_t expected_default_checksum = 11'879'453U;
 
 [[nodiscard]] std::size_t parse_iteration_count(const int argc, char** argv) {
     if (argc < 2) {
@@ -94,8 +95,15 @@ int main(const int argc, char** argv) {
     }
     const auto end = std::chrono::steady_clock::now();
 
-    if (!drag.active() || checksum == 0U) {
-        std::cerr << "benchmark validation failed\n";
+    if (!drag.active()
+        || checksum == 0U
+        || (iteration_count == default_iteration_count
+            && checksum != expected_default_checksum)) {
+        std::cerr << "benchmark validation failed: checksum=" << checksum;
+        if (iteration_count == default_iteration_count) {
+            std::cerr << " expected=" << expected_default_checksum;
+        }
+        std::cerr << '\n';
         return 4;
     }
 

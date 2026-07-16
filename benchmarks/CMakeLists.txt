@@ -46,3 +46,12 @@ target_include_directories(
     PRIVATE
         ${PROJECT_SOURCE_DIR}/src
 )
+
+add_test(
+    NAME diskbloom_review_collector_benchmark_checksum
+    COMMAND diskbloom_review_collector_benchmark 1000000
+)
+set_tests_properties(
+    diskbloom_review_collector_benchmark_checksum
+    PROPERTIES PASS_REGULAR_EXPRESSION "checksum=11879453"
+)
