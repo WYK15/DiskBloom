@@ -29,3 +29,20 @@ target_include_directories(
     PRIVATE
         ${PROJECT_SOURCE_DIR}/src
 )
+
+add_executable(
+    diskbloom_review_collector_benchmark
+    review_collector_benchmark.cpp
+)
+target_link_libraries(
+    diskbloom_review_collector_benchmark
+    PRIVATE
+        diskbloom_app
+        diskbloom_core
+        diskbloom_options
+)
+target_include_directories(
+    diskbloom_review_collector_benchmark
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)

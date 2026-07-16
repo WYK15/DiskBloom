@@ -101,3 +101,75 @@ Added after the original baseline:
 - A bottom deletion collection with size summary, absolute-path confirmation,
   asynchronous recycle-only execution, and automatic rescan after success.
 - Selected-folder scanning through the native Windows folder picker.
+
+## Review Collector Interaction Baseline
+
+Recorded on 2026-07-16 using the same host described above, at 100% display
+scale (`GetDpiForWindow` returned 96), with:
+
+- Microsoft C/C++ Optimizing Compiler 19.51.36248 for x64
+- CMake 4.3.1-msvc1
+- Ninja 1.13.2
+- Windows Release preset with compiler optimizations enabled
+
+Command:
+
+```powershell
+build/windows-release/benchmarks/diskbloom_review_collector_benchmark.exe 1000000
+```
+
+The benchmark precomputes a fixed 1200x720 collector layout, begins one drag,
+then runs one million deterministic iterations. Each iteration performs drag
+movement, collector and panel point containment, and bounded scroll-offset
+movement. The timed loop performs no filesystem queries, traversal, or other
+filesystem work. Its checksum consumes the interaction results so the measured
+work cannot be discarded.
+
+| Run | Iterations | Total (ms) | Operations/second | Checksum |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 1,000,000 | 10.26 | 97,508,653.89 | 11,879,453 |
+| 2 | 1,000,000 | 10.93 | 91,503,866.04 | 11,879,453 |
+| 3 | 1,000,000 | 10.25 | 97,564,783.02 | 11,879,453 |
+
+Median: **10.26 ms** and **97,508,653.89 operations/second**. The checksum was
+stable at **11,879,453**. This median is the baseline for future comparisons on
+this host and toolchain; a different host or compiler requires a new three-run
+baseline before drawing a regression conclusion.
+
+## Review Collector Regression And Visual QA
+
+The full Debug and Release builds completed successfully on 2026-07-16. CTest
+passed **7/7 targets in Debug** and **7/7 targets in Release**, including the
+hidden-window Direct3D/Direct2D analyzer render smoke test and the four app smoke
+targets for dark/light and en-US/zh-CN.
+
+Checks performed in the visible Release application:
+
+- Launched dark/en-US, dark/zh-CN, light/en-US, and light/zh-CN. The overview
+  window rendered in all four combinations. The inspected English and Chinese
+  overview labels were localized and did not clip or overlap at 1200x720.
+- Scanned C: in dark/en-US and inspected the real analyzer with an empty
+  collector, populated summary, and hover panel.
+- Exercised a ranked-row drag and a chart-segment drag with physical pointer
+  input. The collector highlight and drag preview were visible on a valid drop.
+- Repeated the ranked-row drop and performed a release outside the collector.
+  The item count did not change for the duplicate or invalid drop; the chart
+  drop then increased it from one to two.
+- Inspected `feedback/PixPin_2026-07-16_09-30-14.png`. The implemented hover
+  panel follows the reference hierarchy: summary at the bottom left, list panel
+  anchored directly above it, names on the left, sizes on the right, and the
+  panel above the analyzer content. DiskBloom uses its own colors, labels, and
+  controls.
+
+Checks not claimed as manual visual verification:
+
+- Long-list scrolling is exercised by the analyzer render smoke fixture with
+  20 reviewed nodes, but its hidden window was not captured for visual review.
+- Recycling-disabled drag and scroll behavior is exercised by automated tests,
+  but the visible disabled state was not manually inspected.
+- The confirmation dialog and recycle/rescan flow were not run against the
+  scanned system drive, to avoid destructive filesystem changes.
+- Collector states were manually inspected only in dark/en-US. The automated
+  analyzer fixture renders populated/drag/scroll states in all four
+  theme/language combinations, but those frames were not treated as manual
+  pixel verification.
