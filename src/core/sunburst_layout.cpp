@@ -1,13 +1,23 @@
 #include "core/sunburst_layout.h"
 
+#include "core/scan_tree_exclusion.h"
+
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace diskbloom::core {
 namespace {
 
 constexpr float full_circle = 6.28318530717958647692F;
 constexpr std::uint8_t palette_size = 12U;
+
+[[nodiscard]] std::uint64_t saturating_add(
+    const std::uint64_t left,
+    const std::uint64_t right) noexcept {
+    const auto maximum = std::numeric_limits<std::uint64_t>::max();
+    return left > maximum - right ? maximum : left + right;
+}
 
 struct LayoutWork {
     NodeIndex node = invalid_node;
@@ -38,12 +48,23 @@ void build_depth_ranges(SunburstLayout& layout) {
 SunburstLayout build_sunburst_layout(
     const ScanTree& tree,
     const NodeIndex root,
-    const SunburstLayoutOptions& options) {
+    const SunburstLayoutOptions& options,
+    const ScanTreeExclusion* const exclusion) {
     SunburstLayout layout;
     layout.root = root;
     if (root >= tree.nodes().size()
         || options.maxSegments == 0U
-        || options.maxDepth == 0U) {
+        || options.maxDepth == 0U
+        || (exclusion != nullptr && !exclusion->is_visible(tree, root))) {
+        return layout;
+    }
+
+    const auto effective_size = [&tree, exclusion](const NodeIndex node) noexcept {
+        return exclusion != nullptr
+            ? exclusion->effective_size(tree, node)
+            : tree.node(node).logicalSize;
+    };
+    if (effective_size(root) == 0U) {
         return layout;
     }
 
@@ -62,19 +83,20 @@ SunburstLayout build_sunburst_layout(
         }
 
         const auto& parent = tree.node(current.node);
-        if (parent.logicalSize == 0U || parent.firstChild == invalid_node) {
+        const auto parentBytes = effective_size(current.node);
+        if (parentBytes == 0U || parent.firstChild == invalid_node) {
             continue;
         }
 
         const auto parentSweep = current.endAngle - current.startAngle;
         const auto sweepScale = static_cast<double>(parentSweep)
-            / static_cast<double>(parent.logicalSize);
+            / static_cast<double>(parentBytes);
         std::size_t visibleCount = 0U;
         std::uint64_t belowThresholdBytes = 0U;
         for (auto child = parent.firstChild;
              child != invalid_node;
              child = tree.node(child).nextSibling) {
-            const auto childBytes = tree.node(child).logicalSize;
+            const auto childBytes = effective_size(child);
             if (childBytes == 0U) {
                 continue;
             }
@@ -83,7 +105,7 @@ SunburstLayout build_sunburst_layout(
             if (sweep >= minSweep) {
                 ++visibleCount;
             } else {
-                belowThresholdBytes += childBytes;
+                belowThresholdBytes = saturating_add(belowThresholdBytes, childBytes);
             }
         }
 
@@ -99,16 +121,17 @@ SunburstLayout build_sunburst_layout(
         float angle = current.startAngle;
         std::uint8_t paletteOrdinal = 0U;
         for (auto child = parent.firstChild;
-             child != invalid_node;
-             child = tree.node(child).nextSibling) {
+            child != invalid_node;
+            child = tree.node(child).nextSibling) {
             const auto& childNode = tree.node(child);
-            if (childNode.logicalSize == 0U) {
+            const auto childBytes = effective_size(child);
+            if (childBytes == 0U) {
                 continue;
             }
             const auto sweep = static_cast<float>(
-                static_cast<double>(childNode.logicalSize) * sweepScale);
+                static_cast<double>(childBytes) * sweepScale);
             if (sweep < minSweep || individualCount >= individualLimit) {
-                aggregateBytes += childNode.logicalSize;
+                aggregateBytes = saturating_add(aggregateBytes, childBytes);
                 continue;
             }
 
@@ -120,7 +143,7 @@ SunburstLayout build_sunburst_layout(
                 .node = child,
                 .startAngle = angle,
                 .endAngle = endAngle,
-                .logicalSize = childNode.logicalSize,
+                .logicalSize = childBytes,
                 .depth = current.childDepth,
                 .paletteIndex = segmentPalette,
                 .flags = SunburstSegmentFlags::None,

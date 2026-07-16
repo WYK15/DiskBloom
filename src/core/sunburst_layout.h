@@ -9,6 +9,8 @@
 
 namespace diskbloom::core {
 
+class ScanTreeExclusion;
+
 enum class SunburstSegmentFlags : std::uint8_t {
     None = 0U,
     Aggregate = 1U << 0U,
@@ -64,7 +66,8 @@ struct SunburstHit {
 [[nodiscard]] SunburstLayout build_sunburst_layout(
     const ScanTree& tree,
     NodeIndex root,
-    const SunburstLayoutOptions& options);
+    const SunburstLayoutOptions& options,
+    const ScanTreeExclusion* exclusion = nullptr);
 
 [[nodiscard]] std::optional<SunburstHit> hit_test_sunburst(
     const SunburstLayout& layout,

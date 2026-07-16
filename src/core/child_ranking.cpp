@@ -1,5 +1,7 @@
 #include "core/child_ranking.h"
 
+#include "core/scan_tree_exclusion.h"
+
 #include <algorithm>
 #include <queue>
 
@@ -22,7 +24,8 @@ struct BetterComparator {
 std::vector<RankedChild> rank_children(
     const ScanTree& tree,
     const NodeIndex parent,
-    const std::size_t limit) {
+    const std::size_t limit,
+    const ScanTreeExclusion* const exclusion) {
     if (parent >= tree.nodes().size() || limit == 0U) {
         return {};
     }
@@ -31,7 +34,13 @@ std::vector<RankedChild> rank_children(
     for (auto child = tree.node(parent).firstChild;
          child != invalid_node;
          child = tree.node(child).nextSibling) {
-        const RankedChild candidate{child, tree.node(child).logicalSize};
+        const auto logicalSize = exclusion != nullptr
+            ? exclusion->effective_size(tree, child)
+            : tree.node(child).logicalSize;
+        if (exclusion != nullptr && logicalSize == 0U) {
+            continue;
+        }
+        const RankedChild candidate{child, logicalSize};
         if (top.size() < limit) {
             top.push(candidate);
         } else if (better(candidate, top.top())) {
