@@ -79,3 +79,28 @@ set_tests_properties(
     diskbloom_review_collector_benchmark_checksum
     PROPERTIES PASS_REGULAR_EXPRESSION "checksum=11879453"
 )
+
+add_executable(
+    diskbloom_analyzer_hover_pulse_benchmark
+    analyzer_hover_pulse_benchmark.cpp
+)
+target_link_libraries(
+    diskbloom_analyzer_hover_pulse_benchmark
+    PRIVATE
+        diskbloom_app
+        diskbloom_core
+        diskbloom_options
+)
+target_include_directories(
+    diskbloom_analyzer_hover_pulse_benchmark
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/src
+)
+add_test(
+    NAME diskbloom_analyzer_hover_pulse_benchmark_gate
+    COMMAND diskbloom_analyzer_hover_pulse_benchmark
+)
+set_tests_properties(
+    diskbloom_analyzer_hover_pulse_benchmark_gate
+    PROPERTIES PASS_REGULAR_EXPRESSION "segments=2048;checksum=1024000"
+)

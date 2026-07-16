@@ -96,6 +96,7 @@ add_library(
     STATIC
         app/analyzer_breadcrumb.cpp
         app/analyzer_history.cpp
+        app/analyzer_hover_pulse.cpp
         app/analyzer_input_lifecycle.cpp
         app/analyzer_navigation.cpp
         app/analyzer_transition_controller.cpp

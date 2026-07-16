@@ -6,6 +6,7 @@ add_executable(
     analyzer_layout_tests.cpp
     analyzer_child_list_tests.cpp
     analyzer_history_tests.cpp
+    analyzer_hover_pulse_tests.cpp
     analyzer_navigation_tests.cpp
     analyzer_transition_controller_tests.cpp
     child_ranking_tests.cpp

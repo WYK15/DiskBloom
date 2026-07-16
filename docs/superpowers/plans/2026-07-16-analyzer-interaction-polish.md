@@ -37,7 +37,7 @@
 - Consumes: bounded `core::SunburstLayout`, hovered immediate-child `NodeIndex`, monotonic time, and effective animation state.
 - Produces: `find_hover_branch`, `segment_is_in_hover_branch`, and `AnalyzerHoverPulse` lifecycle/opacity APIs.
 
-- [ ] **Step 1: Write failing branch-mapping tests**
+- [x] **Step 1: Write failing branch-mapping tests**
 
 Build a deterministic layout with two root branches and descendants, then assert:
 
@@ -53,7 +53,7 @@ CHECK(!find_hover_branch(layout, aggregatedOutNode).has_value());
 
 Add a file-child case and exact half-open angular boundary assertions.
 
-- [ ] **Step 2: Write failing pulse lifecycle tests**
+- [x] **Step 2: Write failing pulse lifecycle tests**
 
 Use fixed `steady_clock::time_point` values:
 
@@ -72,7 +72,7 @@ CHECK(!pulse.has_target());
 
 Assert all opacity samples remain within declared `minimum_opacity` and `maximum_opacity`, and changing targets resets the phase.
 
-- [ ] **Step 3: Build and verify RED**
+- [x] **Step 3: Build and verify RED**
 
 Run in an x64 Visual Studio developer environment:
 
@@ -82,7 +82,7 @@ cmake --build build/windows-debug --config Debug --target diskbloom_tests --para
 
 Expected: compilation fails because `app/analyzer_hover_pulse.h` does not exist.
 
-- [ ] **Step 4: Implement the bounded pure model**
+- [x] **Step 4: Implement the bounded pure model**
 
 Declare:
 
@@ -118,11 +118,11 @@ public:
 
 Match only nonaggregate depth-zero segments by node. Use a sine-derived `0..1..0` phase over 900 ms and return the midpoint opacity when animation is disabled.
 
-- [ ] **Step 5: Add a deterministic bounded benchmark**
+- [x] **Step 5: Add a deterministic bounded benchmark**
 
 Create a Release benchmark that builds one 2,048-segment layout, selects a depth-zero branch, and measures 1,000 iterations of `find_hover_branch` plus containment checks over every segment. Preallocate timing storage, consume matches in a stable checksum, print `segments`, `iterations`, `average_ms`, `p95_ms`, and `checksum`, and exit nonzero when p95 exceeds 1 ms or the checksum changes. Register a CTest gate that requires `segments=2048`.
 
-- [ ] **Step 6: Verify GREEN and commit**
+- [x] **Step 6: Verify GREEN and commit**
 
 Run the focused unit target and test, then commit:
 
