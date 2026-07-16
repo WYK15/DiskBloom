@@ -29,6 +29,7 @@ add_library(
         core/scan_tree.cpp
         core/string_catalog.cpp
         core/sunburst_layout.cpp
+        core/sunburst_transition.cpp
         core/theme.cpp
 )
 target_link_libraries(diskbloom_core PUBLIC diskbloom_options)

@@ -21,6 +21,7 @@ add_executable(
     shell_actions_tests.cpp
     string_catalog_tests.cpp
     sunburst_layout_tests.cpp
+    sunburst_transition_tests.cpp
     theme_tests.cpp
     test_main.cpp
     test_support.cpp
