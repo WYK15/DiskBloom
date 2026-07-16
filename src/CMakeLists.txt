@@ -42,6 +42,7 @@ add_library(
         platform/windows/folder_picker.cpp
         platform/windows/recycle_bin.cpp
         platform/windows/shell_actions.cpp
+        platform/windows/settings_store.cpp
         platform/windows/system_theme.cpp
         platform/windows/volume_service.cpp
 )

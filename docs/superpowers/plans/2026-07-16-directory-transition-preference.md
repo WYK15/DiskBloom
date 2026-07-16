@@ -133,7 +133,7 @@ git commit -m "feat: add directory transition preference model"
 - Consumes: `DirectoryTransitionMode` from Task 1 and an optional explicit path for deterministic tests.
 - Produces: `default_settings_path`, `load_directory_transition_mode`, and `save_directory_transition_mode_atomic`.
 
-- [ ] **Step 1: Write failing codec and filesystem tests**
+- [x] **Step 1: Write failing codec and filesystem tests**
 
 Create a temporary test directory and cover exact valid values, missing files, malformed values, and preservation of the prior file when the sibling `.tmp` path cannot be opened:
 
@@ -156,7 +156,7 @@ TEST_CASE(settings_store_failed_temp_write_preserves_prior_value) {
 }
 ```
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 Run:
 
@@ -166,7 +166,7 @@ cmake --build build/windows-debug --config Debug --target diskbloom_tests --para
 
 Expected: compilation fails because `platform/windows/settings_store.h` does not exist.
 
-- [ ] **Step 3: Implement the settings store**
+- [x] **Step 3: Implement the settings store**
 
 Declare:
 
@@ -188,7 +188,7 @@ directoryTransitions=always
 
 Accept only `always`, `system`, and `off`. Resolve the default path with `SHGetKnownFolderPath(FOLDERID_LocalAppData)` and append `DiskBloom/settings-v1.ini`. Save by creating the parent directory, writing and flushing `<path>.tmp`, closing it, then calling `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`. Delete only the temporary file after failure; never delete or truncate the prior destination.
 
-- [ ] **Step 4: Run focused persistence tests**
+- [x] **Step 4: Run focused persistence tests**
 
 Run:
 
@@ -199,7 +199,7 @@ ctest --test-dir build/windows-debug -C Debug -R '^diskbloom_tests$' --output-on
 
 Expected: valid modes round-trip, invalid/missing data returns `std::nullopt`, and the prior valid destination survives the forced temp-write failure.
 
-- [ ] **Step 5: Commit persistence**
+- [x] **Step 5: Commit persistence**
 
 ```powershell
 git add src/platform/windows/settings_store.h src/platform/windows/settings_store.cpp src/CMakeLists.txt tests/settings_store_tests.cpp tests/CMakeLists.txt

@@ -17,6 +17,7 @@ add_executable(
     scan_session_tests.cpp
     scan_tree_tests.cpp
     scan_ui_state_tests.cpp
+    settings_store_tests.cpp
     recycle_bin_tests.cpp
     recycle_session_tests.cpp
     review_collector_interaction_tests.cpp
