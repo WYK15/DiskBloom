@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app/analyzer_geometry.h"
 #include "core/language.h"
 #include "core/child_ranking.h"
 #include "core/scan_tree.h"
@@ -16,13 +17,6 @@ class GraphicsDevice;
 }
 
 namespace diskbloom::app {
-
-struct AnalyzerRectF {
-    float left = 0.0F;
-    float top = 0.0F;
-    float right = 0.0F;
-    float bottom = 0.0F;
-};
 
 struct AnalyzerLayout {
     AnalyzerRectF header;

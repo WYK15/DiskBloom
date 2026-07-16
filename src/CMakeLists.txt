@@ -99,6 +99,7 @@ add_library(
         app/disk_overview.cpp
         app/main_window.cpp
         app/recycle_session.cpp
+        app/review_collector_interaction.cpp
         app/scan_ui_state.cpp
 )
 target_link_libraries(
