@@ -38,7 +38,7 @@ TEST_CASE(analyzer_layout_keeps_chart_and_details_inside_supported_viewports) {
         std::array{1200.0F, 720.0F},
     };
     for (const auto& viewport : viewports) {
-        const auto layout = compute_analyzer_layout(viewport[0], viewport[1], 6U);
+        const auto layout = compute_analyzer_layout(viewport[0], viewport[1], 6U, 0.80F);
         const AnalyzerRectF window{0.0F, 0.0F, viewport[0], viewport[1]};
         CHECK(inside(layout.header, window));
         CHECK(inside(layout.backButton, layout.header));
@@ -78,7 +78,7 @@ TEST_CASE(analyzer_layout_keeps_chart_and_details_inside_supported_viewports) {
 }
 
 TEST_CASE(analyzer_layout_chart_geometry_matches_chart_bounds) {
-    const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 4U);
+    const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 4U, 0.80F);
     const auto radius = (layout.chartBounds.right - layout.chartBounds.left) * 0.5F;
     CHECK(layout.chartGeometry.centerX == (layout.chartBounds.left + layout.chartBounds.right) * 0.5F);
     CHECK(layout.chartGeometry.centerY == (layout.chartBounds.top + layout.chartBounds.bottom) * 0.5F);
@@ -89,19 +89,22 @@ TEST_CASE(analyzer_layout_chart_geometry_matches_chart_bounds) {
         < 0.001F);
 }
 
-TEST_CASE(analyzer_layout_scales_chart_radius_to_eighty_percent) {
-    const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 6U);
-    const auto radius = (layout.chartBounds.right - layout.chartBounds.left) * 0.5F;
+TEST_CASE(analyzer_layout_scales_chart_radius_for_every_supported_preset) {
+    constexpr std::array scales{0.60F, 0.70F, 0.80F, 0.90F, 1.00F};
     constexpr float unscaledResponsiveRadius = 288.0F;
 
-    CHECK(std::abs(radius - unscaledResponsiveRadius * 0.80F) < 0.001F);
-    CHECK(layout.chartGeometry.centerX
-        == (layout.chartBounds.left + layout.chartBounds.right) * 0.5F);
+    for (const auto scale : scales) {
+        const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 6U, scale);
+        const auto radius = (layout.chartBounds.right - layout.chartBounds.left) * 0.5F;
+        CHECK(std::abs(radius - unscaledResponsiveRadius * scale) < 0.001F);
+        CHECK(layout.chartGeometry.centerX
+            == (layout.chartBounds.left + layout.chartBounds.right) * 0.5F);
+    }
     CHECK(AnalyzerCommandKind::RestoreReviewItem != AnalyzerCommandKind::ConfirmReview);
 }
 
 TEST_CASE(analyzer_hit_test_distinguishes_back_chart_and_empty_space) {
-    const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 6U);
+    const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 6U, 0.80F);
 
     CHECK(hit_test_analyzer_layout(
               layout,
@@ -146,7 +149,7 @@ TEST_CASE(analyzer_hit_test_distinguishes_back_chart_and_empty_space) {
 }
 
 TEST_CASE(analyzer_header_hit_test_keeps_controls_client_and_exposes_gaps) {
-    const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 6U);
+    const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 6U, 0.80F);
     AnalyzerBreadcrumbLayout breadcrumb;
     breadcrumb.visible = {
         BreadcrumbSegmentLayout{{120.0F, 8.0F, 210.0F, 56.0F}, 0U},

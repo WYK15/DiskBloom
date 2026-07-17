@@ -91,7 +91,8 @@ enum class AnalyzerHitTarget {
 [[nodiscard]] AnalyzerLayout compute_analyzer_layout(
     float widthDip,
     float heightDip,
-    std::size_t depthCount) noexcept;
+    std::size_t depthCount,
+    float chartScale) noexcept;
 
 [[nodiscard]] AnalyzerHitTarget hit_test_analyzer_layout(
     const AnalyzerLayout& layout,
@@ -173,7 +174,8 @@ public:
         const core::ThemeTokens& theme,
         core::Language language,
         float widthDip,
-        float heightDip);
+        float heightDip,
+        float chartScale);
 
     [[nodiscard]] bool pointer_moved(float xDip, float yDip);
     [[nodiscard]] bool pointer_left();
@@ -240,6 +242,7 @@ private:
     bool canNavigateBack_ = false;
     bool canNavigateForward_ = false;
     AnalyzerChildListLayout childListLayout_{};
+    float chartScale_ = 0.80F;
     std::optional<core::SunburstHit> hoveredSegment_;
     std::optional<std::size_t> hoveredChild_;
     std::size_t childScrollOffset_ = 0U;

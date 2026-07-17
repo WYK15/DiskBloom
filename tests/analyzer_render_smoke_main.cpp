@@ -202,7 +202,7 @@ int main(const int argc, char** argv) {
                                   const diskbloom::core::Language language,
                                   diskbloom::render::CapturedFrame* capture = nullptr) {
         return graphics.begin_draw(theme.window)
-            && analyzer.draw(graphics, theme, language, 800.0F, 600.0F)
+            && analyzer.draw(graphics, theme, language, 800.0F, 600.0F, 0.80F)
             && SUCCEEDED(graphics.end_draw(capture));
     };
     if (!drawAnalyzer(lightTheme, diskbloom::core::Language::English)) {
@@ -291,7 +291,8 @@ int main(const int argc, char** argv) {
         return 59;
     }
 
-    const auto analyzerLayout = diskbloom::app::compute_analyzer_layout(800.0F, 600.0F, 2U);
+    const auto analyzerLayout = diskbloom::app::compute_analyzer_layout(
+        800.0F, 600.0F, 2U, 0.80F);
     const auto childLayout = diskbloom::app::compute_analyzer_child_list_layout(
         analyzerLayout.detailsBounds, 3U, 0U);
     const auto& childRow = childLayout.rows.front().bounds;
@@ -345,7 +346,8 @@ int main(const int argc, char** argv) {
                 diskbloom::core::make_theme(true),
                 diskbloom::core::Language::SimplifiedChinese,
                 1200.0F,
-                720.0F)
+                720.0F,
+                0.80F)
             || FAILED(graphics.end_draw(&collectorHint))
             || !save_png(
                 crop_bottom(collectorHint, 88U),

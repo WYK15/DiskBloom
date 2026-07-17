@@ -189,7 +189,8 @@ std::wstring format_bytes(const std::uint64_t bytes) {
 AnalyzerLayout compute_analyzer_layout(
     const float widthDip,
     const float heightDip,
-    const std::size_t depthCount) noexcept {
+    const std::size_t depthCount,
+    const float chartScale) noexcept {
     constexpr float headerHeight = 64.0F;
     constexpr float actionBarHeight = 56.0F;
     const auto width = std::max(widthDip, 0.0F);
@@ -202,7 +203,7 @@ AnalyzerLayout compute_analyzer_layout(
     const auto responsiveRadius = std::max(
         20.0F,
         std::min((chartAreaRight - 48.0F) * 0.5F, (actionTop - headerHeight - 24.0F) * 0.5F));
-    const auto radius = responsiveRadius * 0.80F;
+    const auto radius = responsiveRadius * std::clamp(chartScale, 0.60F, 1.00F);
     const auto bandCount = static_cast<float>(std::max<std::size_t>(depthCount, 1U));
     const auto innerRadius = radius * 0.22F;
 
@@ -478,7 +479,8 @@ bool AnalyzerView::navigate_to_root(
     const auto destinationLayout = compute_analyzer_layout(
         layout_.header.right,
         layout_.actionBar.bottom,
-        destination.depthRanges.size());
+        destination.depthRanges.size(),
+        chartScale_);
     if (transitionController_.active()) {
         transitionPlan_ = core::build_sunburst_transition(
             core::snapshot_transition_frame(transitionFrame_),
@@ -615,7 +617,8 @@ bool AnalyzerView::reflow_review_change(
     const auto destinationLayout = compute_analyzer_layout(
         layout_.header.right,
         layout_.actionBar.bottom,
-        sunburst_.depthRanges.size());
+        sunburst_.depthRanges.size(),
+        chartScale_);
     transitionPlan_ = sourceSnapshot.has_value()
         ? core::build_sunburst_transition(
               *sourceSnapshot, sunburst_, destinationLayout.chartGeometry, root)
@@ -1199,12 +1202,18 @@ bool AnalyzerView::draw(
     const core::ThemeTokens& theme,
     const core::Language language,
     const float widthDip,
-    const float heightDip) {
+    const float heightDip,
+    const float chartScale) {
     if (tree_ == nullptr || root_ >= tree_->nodes().size()
         || !ensure_resources(graphics, theme, language)) {
         return false;
     }
-    layout_ = compute_analyzer_layout(widthDip, heightDip, sunburst_.depthRanges.size());
+    chartScale_ = std::clamp(chartScale, 0.60F, 1.00F);
+    layout_ = compute_analyzer_layout(
+        widthDip,
+        heightDip,
+        sunburst_.depthRanges.size(),
+        chartScale_);
     if (!ensure_breadcrumb_layout(graphics, language, heightDip)) {
         return false;
     }
