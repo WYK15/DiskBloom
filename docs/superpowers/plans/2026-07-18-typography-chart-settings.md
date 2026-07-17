@@ -34,7 +34,7 @@
 - Consumes: existing `AppearanceSettings`, `SettingsCommand`, and `apply_settings_command`.
 - Produces: `TextScalePreset`, `FontFamilyPreset`, `ChartScalePreset`, `TypographySettings`, `text_scale_factor`, `chart_scale_factor`, `body_font_family`, and `display_font_family`.
 
-- [ ] **Step 1: Add failing default and conversion tests**
+- [x] **Step 1: Add failing default and conversion tests**
 
 Add the following tests before changing production code:
 
@@ -74,7 +74,7 @@ TEST_CASE(appearance_settings_maps_all_preset_values_without_string_parsing) {
 
 Add `#include <cmath>` and `using` declarations for each new type/helper.
 
-- [ ] **Step 2: Run the unit executable and verify RED**
+- [x] **Step 2: Run the unit executable and verify RED**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests
@@ -83,7 +83,7 @@ build/windows-debug/tests/diskbloom_tests.exe
 
 Expected: compilation fails because the preset types and helpers do not exist.
 
-- [ ] **Step 3: Add the preset model and constant-time helpers**
+- [x] **Step 3: Add the preset model and constant-time helpers**
 
 Add these declarations to `appearance_settings.h`:
 
@@ -138,7 +138,7 @@ struct AppearanceSettings {
 
 Implement each helper with a complete `switch`. Invalid enum values return the documented defaults (`1.0F`, `0.80F`, and the Segoe Variable families). Do not use maps, allocations, or runtime string parsing.
 
-- [ ] **Step 4: Add failing command-isolation tests**
+- [x] **Step 4: Add failing command-isolation tests**
 
 Extend `SettingsCommand` with these exact values:
 
@@ -220,7 +220,7 @@ TEST_CASE(appearance_settings_applies_each_new_preset_without_touching_other_fie
 
 Add `<array>` and `<utility>` to the test includes.
 
-- [ ] **Step 5: Verify RED, implement every command, and verify GREEN**
+- [x] **Step 5: Verify RED, implement every command, and verify GREEN**
 
 Run `build/windows-debug/tests/diskbloom_tests.exe`; expect the first new command assertion to fail. Add one explicit `switch` arm per preset to `apply_settings_command`, then run:
 
@@ -231,7 +231,7 @@ ctest --preset windows-debug -R '^diskbloom_tests$' --output-on-failure
 
 Expected: `diskbloom_tests` passes, including unknown-command rejection and all prior theme/language/animation behavior.
 
-- [ ] **Step 6: Commit the typed settings domain**
+- [x] **Step 6: Commit the typed settings domain**
 
 ```powershell
 git add src/app/appearance_settings.h src/app/appearance_settings.cpp tests/appearance_settings_tests.cpp
@@ -251,7 +251,7 @@ git commit -m "feat: add typography and chart presets"
 - Consumes: `core::StringId` and `core::get_string`.
 - Produces: localized IDs for submenu headings, percentages, and font names.
 
-- [ ] **Step 1: Add failing catalog assertions**
+- [x] **Step 1: Add failing catalog assertions**
 
 Add IDs named `TextSize`, `Font`, `ChartSize`, `Percent60`, `Percent70`, `Percent80`, `Percent90`, `Percent100`, `Percent110`, `Percent120`, `FontSegoeUiVariable`, `FontMicrosoftYaHeiUi`, `FontArial`, and `FontConsolas`. Before adding catalog entries, assert representative values:
 
@@ -270,7 +270,7 @@ CHECK(get_string(Language::SimplifiedChinese, StringId::FontConsolas)
     == L"Consolas");
 ```
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests
@@ -278,13 +278,13 @@ cmake --build --preset windows-debug --target diskbloom_tests
 
 Expected: build or catalog-completeness failure because the new IDs have no entries.
 
-- [ ] **Step 3: Add both complete catalog sequences**
+- [x] **Step 3: Add both complete catalog sequences**
 
 Append entries in the exact enum order. English headings are `Text size`, `Font`, `Chart size`; Chinese headings are `\u6587\u5b57\u5927\u5c0f`, `\u5b57\u4f53`, `\u5706\u56fe\u5927\u5c0f`. Percentage and registered family-name values are identical in both arrays.
 
 Keep both `static_assert` checks and the all-IDs completeness test intact.
 
-- [ ] **Step 4: Verify and commit localization**
+- [x] **Step 4: Verify and commit localization**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests
@@ -308,7 +308,7 @@ Expected: unit suite passes with no empty English or Chinese string.
 - Consumes: `AppearanceSettings` and all preset enums from Task 1.
 - Produces: `default_settings_path`, `legacy_settings_path`, `load_settings`, `load_legacy_directory_transition_mode`, and `save_settings_atomic`.
 
-- [ ] **Step 1: Replace the old round-trip test with a failing v2 snapshot test**
+- [x] **Step 1: Replace the old round-trip test with a failing v2 snapshot test**
 
 Use a unique `settings-v2.ini` test path and add:
 
@@ -330,7 +330,7 @@ TEST_CASE(settings_store_round_trips_complete_v2_snapshot) {
 }
 ```
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests
@@ -338,7 +338,7 @@ cmake --build --preset windows-debug --target diskbloom_tests
 
 Expected: compilation fails because `load_settings` and `save_settings_atomic` are absent.
 
-- [ ] **Step 3: Introduce the v2 API and deterministic serializer**
+- [x] **Step 3: Introduce the v2 API and deterministic serializer**
 
 Replace the public API with:
 
@@ -374,7 +374,7 @@ Recognize only these field tokens: `system/light/dark`, `en-US/zh-CN`,
 `segoe-variable/microsoft-yahei-ui/arial/consolas`, and
 `60/70/80/90/100`, respectively.
 
-- [ ] **Step 4: Add failing validation, migration, and atomicity tests**
+- [x] **Step 4: Add failing validation, migration, and atomicity tests**
 
 Add tests that write these exact fixtures:
 
@@ -391,7 +391,7 @@ futureKey=preserved-by-future-version
 
 Assert the valid language loads while every invalid known field uses the caller-provided default. Add an invalid-header fixture and assert `load_settings` returns `std::nullopt`. Rename the existing v1 tests to call `load_legacy_directory_transition_mode`, and retain the `.tmp` directory collision test with `save_settings_atomic`, asserting the previous complete snapshot remains readable.
 
-- [ ] **Step 5: Implement bounded line parsing and verify GREEN**
+- [x] **Step 5: Implement bounded line parsing and verify GREEN**
 
 Read at most 2048 bytes. Require the first line to equal `DiskBloomSettings/2`. Scan the fixed input buffer with `std::string_view`, split each line at the first `=`, and do not allocate per line. For each known key, assign only an exact recognized token. Start from the supplied `defaults`, ignore unknown keys, and return the resulting snapshot. Keep the legacy loader's exact three-file recognition unchanged.
 
@@ -404,7 +404,7 @@ ctest --preset windows-debug -R '^diskbloom_tests$' --output-on-failure
 
 Expected: all v1, v2, malformed-input, and atomic-failure tests pass.
 
-- [ ] **Step 6: Commit the store upgrade**
+- [x] **Step 6: Commit the store upgrade**
 
 ```powershell
 git add src/platform/windows/settings_store.h src/platform/windows/settings_store.cpp tests/settings_store_tests.cpp
@@ -425,7 +425,7 @@ git commit -m "feat: persist complete appearance settings"
 - Consumes: `chart_scale_factor(ChartScalePreset)`.
 - Produces: `compute_analyzer_layout(widthDip, heightDip, depthCount, chartScale)` and analyzer drawing with a chart-scale input.
 
-- [ ] **Step 1: Add a failing all-presets geometry test**
+- [x] **Step 1: Add a failing all-presets geometry test**
 
 Replace the fixed 80-percent assertion with:
 
@@ -445,7 +445,7 @@ TEST_CASE(analyzer_layout_scales_chart_radius_for_every_supported_preset) {
 
 Update the existing containment and hit-test test inputs to pass `0.80F` explicitly.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests
@@ -453,7 +453,7 @@ cmake --build --preset windows-debug --target diskbloom_tests
 
 Expected: compilation fails because the layout function has no scale parameter.
 
-- [ ] **Step 3: Thread scale through layout, transitions, and drawing**
+- [x] **Step 3: Thread scale through layout, transitions, and drawing**
 
 Change the layout signature to:
 
@@ -473,7 +473,7 @@ const auto radius = responsiveRadius * std::clamp(chartScale, 0.60F, 1.00F);
 
 Add `float chartScale_ = 0.80F;` to `AnalyzerView`. Extend `draw` with a `float chartScale` argument, assign the clamped value before computing layout, and pass `chartScale_` in both destination-layout calls used by navigation and review transitions. Pass `0.80F` from existing smoke-test calls until Task 5 supplies typography alongside it.
 
-- [ ] **Step 4: Verify geometry and render smoke**
+- [x] **Step 4: Verify geometry and render smoke**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests diskbloom_analyzer_render_smoke
@@ -482,7 +482,7 @@ ctest --preset windows-debug -R 'diskbloom_tests|diskbloom_analyzer_render_smoke
 
 Expected: both targets pass; existing animation target geometry and chart hit testing remain aligned.
 
-- [ ] **Step 5: Commit chart configurability**
+- [x] **Step 5: Commit chart configurability**
 
 ```powershell
 git add src/app/analyzer_view.h src/app/analyzer_view.cpp tests/analyzer_layout_tests.cpp tests/analyzer_render_smoke_main.cpp
@@ -507,7 +507,7 @@ git commit -m "feat: make analyzer chart scale configurable"
 - Consumes: `TypographySettings`, `text_scale_factor`, `body_font_family`, and `display_font_family`.
 - Produces: typography-aware, cached DirectWrite formats in both views.
 
-- [ ] **Step 1: Add failing view call sites for minimum and maximum typography**
+- [x] **Step 1: Add failing view call sites for minimum and maximum typography**
 
 In both smoke executables, define:
 
@@ -524,7 +524,7 @@ const diskbloom::app::TypographySettings largeConsolas{
 
 Call `DiskOverview::draw` and `AnalyzerView::draw` twice on the same view instance with these settings, in both theme/language loops. For analyzer calls also pass `0.60F` and `1.00F`. Update `diskbloom_render_smoke` to link `diskbloom_app` and `diskbloom_platform_windows` so it can instantiate an empty `DiskOverview`.
 
-- [ ] **Step 2: Build and verify RED**
+- [x] **Step 2: Build and verify RED**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_render_smoke diskbloom_analyzer_render_smoke
@@ -532,7 +532,7 @@ cmake --build --preset windows-debug --target diskbloom_render_smoke diskbloom_a
 
 Expected: compilation fails because view draw methods do not accept typography.
 
-- [ ] **Step 3: Add typography to resource cache keys**
+- [x] **Step 3: Add typography to resource cache keys**
 
 Extend both view APIs:
 
@@ -558,7 +558,7 @@ const auto displayFamily = display_font_family(typography.fontFamily);
 
 Multiply every existing format size by `scale`. Use `displayFamily.data()` only for the overview title format and `bodyFamily.data()` for all other formats. Preserve all alignment, wrapping, trimming, and ellipsis configuration.
 
-- [ ] **Step 4: Pass active settings from MainWindow**
+- [x] **Step 4: Pass active settings from MainWindow**
 
 Change `render_frame` calls to:
 
@@ -574,7 +574,7 @@ const auto rendered = navigation_.view == MainContentView::Analyzer
 
 Update every smoke helper and direct draw call to the new exact parameter order.
 
-- [ ] **Step 5: Verify cache invalidation visually and automatically**
+- [x] **Step 5: Verify cache invalidation visually and automatically**
 
 In analyzer smoke, render the same populated analyzer sequentially with all four font presets and both text extremes. Capture the BGRA frames for the four representative combinations when `--capture-dir` is present:
 
@@ -620,7 +620,7 @@ ctest --preset windows-debug -R 'diskbloom_render_smoke|diskbloom_analyzer_rende
 
 Expected: overview and analyzer render in light/dark and English/Chinese at both text extremes; all six smoke tests pass.
 
-- [ ] **Step 6: Commit typography rendering**
+- [x] **Step 6: Commit typography rendering**
 
 ```powershell
 git add src/app/disk_overview.h src/app/disk_overview.cpp src/app/analyzer_view.h src/app/analyzer_view.cpp src/app/main_window.cpp tests/render_smoke_main.cpp tests/analyzer_render_smoke_main.cpp tests/CMakeLists.txt
@@ -643,7 +643,7 @@ git commit -m "feat: apply typography presets to app views"
 - Consumes: all setting commands, v2 path/load/save APIs, legacy path/loader, and localized `StringId` labels.
 - Produces: `make_settings_candidate`, checked preset submenus, save-before-activate behavior, and startup v1 migration.
 
-- [ ] **Step 1: Add a failing candidate-snapshot isolation test**
+- [x] **Step 1: Add a failing candidate-snapshot isolation test**
 
 Document the transactional UI behavior through the pure settings model:
 
@@ -676,7 +676,7 @@ to `appearance_settings.h`. Run the test before implementation and confirm RED
 because `make_settings_candidate` is undefined; then implement the minimal
 helper and verify the unit suite passes.
 
-- [ ] **Step 2: Load v2 or v1 before applying QA arguments**
+- [x] **Step 2: Load v2 or v1 before applying QA arguments**
 
 In `win_main.cpp`, preserve the system-derived initial language as the caller defaults, then implement this order:
 
@@ -701,7 +701,7 @@ if (const auto saved = diskbloom::platform::windows::load_settings(
 Add `<filesystem>` and `<system_error>` includes. Keep command-line argument
 processing after this block, so QA overrides remain process-local.
 
-- [ ] **Step 3: Build all checked submenus from localized entries**
+- [x] **Step 3: Build all checked submenus from localized entries**
 
 Create native popup handles for theme, language, text size, font, chart size, and directory transitions. Append exactly one checked item in each group using the current candidate values. Use these localized ID mappings:
 
@@ -724,7 +724,7 @@ ChartScale100 -> StringId::Percent100
 
 Attach them to the root with `StringId::TextSize`, `StringId::Font`, and `StringId::ChartSize`. On allocation failure, destroy every handle that has not yet become owned by the root. `DestroyMenu(root)` remains the single cleanup after tracking.
 
-- [ ] **Step 4: Persist the candidate before activation**
+- [x] **Step 4: Persist the candidate before activation**
 
 Replace in-place mutation with:
 
@@ -757,7 +757,7 @@ InvalidateRect(window_, nullptr, FALSE);
 
 Do not manually rebuild DirectWrite resources: their typed cache keys invalidate on the next render.
 
-- [ ] **Step 5: Verify startup, menu commands, and persistence**
+- [x] **Step 5: Verify startup, menu commands, and persistence**
 
 ```powershell
 cmake --build --preset windows-debug --target DiskBloom diskbloom_tests diskbloom_render_smoke diskbloom_analyzer_render_smoke
@@ -766,7 +766,7 @@ ctest --preset windows-debug --output-on-failure
 
 Expected: the complete Debug suite passes. Manually launch `build/windows-debug/src/DiskBloom.exe`, select each submenu once in light and dark modes, switch English/Chinese, restart, and confirm the last successful values remain checked.
 
-- [ ] **Step 6: Commit menu and startup integration**
+- [x] **Step 6: Commit menu and startup integration**
 
 ```powershell
 git add src/app/appearance_settings.h src/app/appearance_settings.cpp src/app/win_main.cpp src/app/main_window.cpp tests/appearance_settings_tests.cpp tests/settings_store_tests.cpp
@@ -789,7 +789,7 @@ git commit -m "feat: expose persisted display settings"
 - Consumes: completed feature and analyzer `--capture-dir` support.
 - Produces: Release evidence, repeatable render timing, completed checklist, and final executable.
 
-- [ ] **Step 1: Run the complete Debug and Release suites**
+- [x] **Step 1: Run the complete Debug and Release suites**
 
 ```powershell
 cmake --build --preset windows-debug
@@ -800,7 +800,7 @@ ctest --preset windows-release --output-on-failure
 
 Expected: every registered unit, render, app smoke, and benchmark gate passes in both configurations.
 
-- [ ] **Step 2: Generate and inspect Release captures**
+- [x] **Step 2: Generate and inspect Release captures**
 
 ```powershell
 $evidence = 'docs/qa/evidence/typography-chart-settings'
@@ -816,7 +816,7 @@ Copy-Item "$temporary/typography-consolas-120-chart-60-light-zh.png" $evidence
 
 Inspect the four typography/chart frames in Task 5. Verify the chart is centered, text does not overlap preceding or following content, breadcrumb labels trim correctly, action labels remain inside buttons, child rows remain aligned, collector hints remain visible, and Chinese glyph fallback works for Arial and Consolas. Check both light and dark evidence.
 
-- [ ] **Step 3: Measure unchanged-settings render smoke repeatedly**
+- [x] **Step 3: Measure unchanged-settings render smoke repeatedly**
 
 ```powershell
 $samples = 1..20 | ForEach-Object {
@@ -834,7 +834,7 @@ $sorted = $samples | Sort-Object
 
 Run the same command on the parent commit if the median materially increases. No regression is accepted without a documented measured reason. This is a repeatable whole-process check; code inspection must also confirm the unchanged typography key returns before any brush or text-format creation.
 
-- [ ] **Step 4: Record QA evidence and finish the plan**
+- [x] **Step 4: Record QA evidence and finish the plan**
 
 Append the exact Debug/Release test totals, capture filenames, manual light/dark and English/Chinese observations, and 20-run median/max timing to `docs/qa/sunburst-analyzer.md`. Mark every completed checkbox in this plan, then run:
 
@@ -845,7 +845,7 @@ git add docs/qa/sunburst-analyzer.md docs/qa/evidence/typography-chart-settings 
 git commit -m "docs: verify typography and chart settings"
 ```
 
-- [ ] **Step 5: Final verification and handoff**
+- [x] **Step 5: Final verification and handoff**
 
 ```powershell
 cmake --build --preset windows-release --target DiskBloom diskbloom_tests diskbloom_render_smoke diskbloom_analyzer_render_smoke

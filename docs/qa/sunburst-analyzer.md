@@ -370,3 +370,50 @@ four theme/language combinations. A destructive live Recycle Bin pass was not
 performed during this run; the existing mocked recycle/session tests and app
 smoke paths passed, while final user acceptance should exercise a disposable
 folder before release distribution.
+
+## Typography And Chart Settings
+
+Recorded on 2026-07-18 for the preset display settings. The Settings popup now
+offers text sizes from 80-120 percent, four fixed Windows font families, and
+chart sizes from 60-100 percent. Changes save a complete v2 snapshot before
+activation. Startup reads v2 first and imports the legacy v1 directory
+transition preference only when v2 is absent.
+
+Fresh Debug and Release builds both passed **11/11 CTest targets**. The Release
+unit executable reported **173 tests, 0 failures**. Coverage includes preset
+isolation, complete English/Chinese catalogs, v2 round trips and malformed
+field fallback, v1 parsing, atomic-write failure preservation, all five chart
+scales, DirectWrite cache invalidation, deterministic repeat drawing, and the
+dark/light en-US/zh-CN app smoke matrix. All four existing performance gates
+also passed unchanged.
+
+Inspected Release evidence under
+`docs/qa/evidence/typography-chart-settings/`:
+
+- `typography-segoe-80-chart-60-light-en.png`: the 60-percent chart remains
+  centered and the 80-percent Segoe labels remain readable in the light theme.
+- `typography-yahei-120-chart-100-dark-zh.png`: the largest chart and Chinese
+  120-percent text fit the details and action regions without overlap.
+- `typography-arial-80-chart-100-dark-en.png`: Arial renders the complete dark
+  English navigation, details list, and action labels.
+- `typography-consolas-120-chart-60-light-zh.png`: DirectWrite fallback renders
+  Chinese while Consolas renders Latin/numeric text. A screenshot review found
+  and fixed center-label clipping; the final `306 KB` is fully visible.
+
+The Release analyzer smoke executable was launched 20 times as a complete
+process. All runs exited successfully; median elapsed time was **10,439.53 ms**
+and maximum elapsed time was **10,494.27 ms**. Raw milliseconds were:
+
+```text
+10388.11, 10420.20, 10431.02, 10468.22, 10443.53,
+10439.53, 10409.17, 10338.11, 10494.27, 10457.83,
+10469.51, 10433.19, 10371.81, 10480.68, 10440.01,
+10449.34, 10353.79, 10452.10, 10427.09, 10342.71
+```
+
+The same host temporarily imposed roughly nine seconds of startup time on both
+the pre-feature analyzer smoke binary and the feature binary; same-time samples
+were 9,154 ms and 9,005 ms respectively. The feature smoke performs five extra
+captured typography/chart draws. Code inspection confirms that an unchanged
+theme, language, typography snapshot, chart scale, and Direct2D context return
+from the resource cache before brush or text-format creation.
