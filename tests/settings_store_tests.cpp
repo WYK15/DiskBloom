@@ -34,11 +34,77 @@ void cleanup_settings_test_path(const std::filesystem::path& path) {
 
 } // namespace
 
+using diskbloom::app::AppearanceSettings;
+using diskbloom::app::ChartScalePreset;
 using diskbloom::app::DirectoryTransitionMode;
-using diskbloom::platform::windows::load_directory_transition_mode;
+using diskbloom::app::FontFamilyPreset;
+using diskbloom::app::TextScalePreset;
+using diskbloom::core::Language;
+using diskbloom::core::ThemeMode;
+using diskbloom::platform::windows::load_legacy_directory_transition_mode;
+using diskbloom::platform::windows::load_settings;
+using diskbloom::platform::windows::save_settings_atomic;
 using diskbloom::platform::windows::save_directory_transition_mode_atomic;
 
-TEST_CASE(settings_store_round_trips_directory_transition_modes) {
+TEST_CASE(settings_store_round_trips_complete_v2_snapshot) {
+    const auto path = unique_settings_test_path();
+    AppearanceSettings expected{ThemeMode::Dark, Language::SimplifiedChinese};
+    expected.directoryTransitions = DirectoryTransitionMode::FollowSystem;
+    expected.typography.textScale = TextScalePreset::Percent120;
+    expected.typography.fontFamily = FontFamilyPreset::MicrosoftYaHeiUi;
+    expected.chartScale = ChartScalePreset::Percent60;
+
+    CHECK(save_settings_atomic(path, expected));
+    const auto loaded = load_settings(
+        path,
+        AppearanceSettings{ThemeMode::System, Language::English});
+    CHECK(loaded.has_value());
+    if (loaded.has_value()) {
+        CHECK(*loaded == expected);
+    }
+    cleanup_settings_test_path(path);
+}
+
+TEST_CASE(settings_store_v2_invalid_fields_fall_back_independently) {
+    const auto path = unique_settings_test_path();
+    {
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        output
+            << "DiskBloomSettings/2\n"
+            << "theme=purple\n"
+            << "language=zh-CN\n"
+            << "directoryTransitions=slow\n"
+            << "textScale=135\n"
+            << "fontFamily=unknown\n"
+            << "chartScale=75\n"
+            << "futureKey=future-value\n";
+    }
+
+    AppearanceSettings defaults{ThemeMode::Light, Language::English};
+    defaults.directoryTransitions = DirectoryTransitionMode::Off;
+    defaults.typography.textScale = TextScalePreset::Percent90;
+    defaults.typography.fontFamily = FontFamilyPreset::Arial;
+    defaults.chartScale = ChartScalePreset::Percent90;
+    const auto loaded = load_settings(path, defaults);
+    CHECK(loaded.has_value());
+    if (loaded.has_value()) {
+        CHECK(loaded->themeMode == ThemeMode::Light);
+        CHECK(loaded->language == Language::SimplifiedChinese);
+        CHECK(loaded->directoryTransitions == DirectoryTransitionMode::Off);
+        CHECK(loaded->typography.textScale == TextScalePreset::Percent90);
+        CHECK(loaded->typography.fontFamily == FontFamilyPreset::Arial);
+        CHECK(loaded->chartScale == ChartScalePreset::Percent90);
+    }
+
+    {
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        output << "OtherSettings/2\nlanguage=zh-CN\n";
+    }
+    CHECK(!load_settings(path, defaults).has_value());
+    cleanup_settings_test_path(path);
+}
+
+TEST_CASE(settings_store_round_trips_legacy_directory_transition_modes) {
     const auto path = unique_settings_test_path();
 
     for (const auto mode : {
@@ -51,7 +117,7 @@ TEST_CASE(settings_store_round_trips_directory_transition_modes) {
             cleanup_settings_test_path(path);
             return;
         }
-        const auto loaded = load_directory_transition_mode(path);
+        const auto loaded = load_legacy_directory_transition_mode(path);
         CHECK(loaded.has_value());
         if (!loaded.has_value()) {
             cleanup_settings_test_path(path);
@@ -63,30 +129,32 @@ TEST_CASE(settings_store_round_trips_directory_transition_modes) {
     cleanup_settings_test_path(path);
 }
 
-TEST_CASE(settings_store_missing_or_malformed_value_has_no_preference) {
+TEST_CASE(settings_store_legacy_missing_or_malformed_value_has_no_preference) {
     const auto path = unique_settings_test_path();
-    CHECK(!load_directory_transition_mode(path).has_value());
+    CHECK(!load_legacy_directory_transition_mode(path).has_value());
 
     {
         std::ofstream output(path, std::ios::binary | std::ios::trunc);
         output << "DiskBloomSettings/1\ndirectoryTransitions=slow\n";
     }
-    CHECK(!load_directory_transition_mode(path).has_value());
+    CHECK(!load_legacy_directory_transition_mode(path).has_value());
 
     {
         std::ofstream output(path, std::ios::binary | std::ios::trunc);
         output << "OtherSettings/1\ndirectoryTransitions=always\n";
     }
-    CHECK(!load_directory_transition_mode(path).has_value());
+    CHECK(!load_legacy_directory_transition_mode(path).has_value());
 
     cleanup_settings_test_path(path);
 }
 
 TEST_CASE(settings_store_failed_temp_write_preserves_prior_value) {
     const auto path = unique_settings_test_path();
-    const auto initiallySaved = save_directory_transition_mode_atomic(
-        path,
-        DirectoryTransitionMode::AlwaysOn);
+    AppearanceSettings initial{ThemeMode::Dark, Language::English};
+    initial.typography.textScale = TextScalePreset::Percent110;
+    initial.typography.fontFamily = FontFamilyPreset::Consolas;
+    initial.chartScale = ChartScalePreset::Percent70;
+    const auto initiallySaved = save_settings_atomic(path, initial);
     CHECK(initiallySaved);
     if (!initiallySaved) {
         cleanup_settings_test_path(path);
@@ -100,14 +168,18 @@ TEST_CASE(settings_store_failed_temp_write_preserves_prior_value) {
         return;
     }
 
-    CHECK(!save_directory_transition_mode_atomic(path, DirectoryTransitionMode::Off));
-    const auto loaded = load_directory_transition_mode(path);
+    auto replacement = initial;
+    replacement.themeMode = ThemeMode::Light;
+    CHECK(!save_settings_atomic(path, replacement));
+    const auto loaded = load_settings(
+        path,
+        AppearanceSettings{ThemeMode::System, Language::SimplifiedChinese});
     CHECK(loaded.has_value());
     if (!loaded.has_value()) {
         cleanup_settings_test_path(path);
         return;
     }
-    CHECK(*loaded == DirectoryTransitionMode::AlwaysOn);
+    CHECK(*loaded == initial);
 
     cleanup_settings_test_path(path);
 }
