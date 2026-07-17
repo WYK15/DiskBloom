@@ -7,6 +7,7 @@
 #include <array>
 #include <cmath>
 #include <cwchar>
+#include <string_view>
 #include <utility>
 
 #include <d2d1_1helper.h>
@@ -176,6 +177,7 @@ struct DiskOverview::Resources {
     ID2D1DeviceContext* context = nullptr;
     core::Rgba themeKey{};
     core::Language language = core::Language::English;
+    TypographySettings typography{};
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> titleBar;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> row;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> alternateRow;
@@ -214,7 +216,8 @@ void DiskOverview::set_scan_statuses(
 bool DiskOverview::ensure_resources(
     render::GraphicsDevice& graphics,
     const core::ThemeTokens& theme,
-    const core::Language language) {
+    const core::Language language,
+    const TypographySettings& typography) {
     auto* context = graphics.d2d_context();
     auto* write_factory = graphics.dwrite_factory();
     if (context == nullptr || write_factory == nullptr) {
@@ -224,7 +227,8 @@ bool DiskOverview::ensure_resources(
     if (resources_ != nullptr
         && resources_->context == context
         && same_color(resources_->themeKey, theme.window)
-        && resources_->language == language) {
+        && resources_->language == language
+        && resources_->typography == typography) {
         return true;
     }
 
@@ -232,6 +236,7 @@ bool DiskOverview::ensure_resources(
     resources->context = context;
     resources->themeKey = theme.window;
     resources->language = language;
+    resources->typography = typography;
 
     const auto make_brush = [&](const core::Rgba color, auto& brush) {
         return SUCCEEDED(context->CreateSolidColorBrush(to_d2d_color(color), &brush));
@@ -252,24 +257,26 @@ bool DiskOverview::ensure_resources(
     }
 
     const auto create_format = [&](
-                                   const wchar_t* family,
+                                   const std::wstring_view family,
                                    const float size,
                                    auto& format) {
         return SUCCEEDED(write_factory->CreateTextFormat(
-            family,
+            family.data(),
             nullptr,
             DWRITE_FONT_WEIGHT_NORMAL,
             DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL,
-            size,
+            size * text_scale_factor(typography.textScale),
             language == core::Language::SimplifiedChinese ? L"zh-CN" : L"en-US",
             &format));
     };
 
-    if (!create_format(L"Segoe UI Variable Display", 28.0F, resources->titleFormat)
-        || !create_format(L"Segoe UI Variable Text", 25.0F, resources->headingFormat)
-        || !create_format(L"Segoe UI Variable Text", 18.0F, resources->detailFormat)
-        || !create_format(L"Segoe UI Variable Text", 19.0F, resources->buttonFormat)) {
+    const auto displayFamily = display_font_family(typography.fontFamily);
+    const auto bodyFamily = body_font_family(typography.fontFamily);
+    if (!create_format(displayFamily, 28.0F, resources->titleFormat)
+        || !create_format(bodyFamily, 25.0F, resources->headingFormat)
+        || !create_format(bodyFamily, 18.0F, resources->detailFormat)
+        || !create_format(bodyFamily, 19.0F, resources->buttonFormat)) {
         return false;
     }
 
@@ -289,9 +296,10 @@ bool DiskOverview::draw(
     render::GraphicsDevice& graphics,
     const core::ThemeTokens& theme,
     const core::Language language,
+    const TypographySettings& typography,
     const float widthDip,
     const float heightDip) {
-    if (!ensure_resources(graphics, theme, language)) {
+    if (!ensure_resources(graphics, theme, language, typography)) {
         return false;
     }
 

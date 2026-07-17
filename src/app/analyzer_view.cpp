@@ -367,6 +367,7 @@ struct AnalyzerView::Resources {
     ID2D1DeviceContext* context = nullptr;
     core::Rgba themeKey{};
     core::Language language = core::Language::English;
+    TypographySettings typography{};
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> header;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> surface;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> panel;
@@ -872,7 +873,8 @@ void AnalyzerView::rebuild_layout() {
 bool AnalyzerView::ensure_resources(
     render::GraphicsDevice& graphics,
     const core::ThemeTokens& theme,
-    const core::Language language) {
+    const core::Language language,
+    const TypographySettings& typography) {
     auto* context = graphics.d2d_context();
     auto* writeFactory = graphics.dwrite_factory();
     if (context == nullptr || writeFactory == nullptr) {
@@ -880,7 +882,8 @@ bool AnalyzerView::ensure_resources(
     }
     if (resources_ != nullptr && resources_->context == context
         && same_color(resources_->themeKey, theme.window)
-        && resources_->language == language) {
+        && resources_->language == language
+        && resources_->typography == typography) {
         return true;
     }
 
@@ -888,6 +891,7 @@ bool AnalyzerView::ensure_resources(
     resources->context = context;
     resources->themeKey = theme.window;
     resources->language = language;
+    resources->typography = typography;
     const auto makeBrush = [&](const core::Rgba color, auto& brush) {
         return SUCCEEDED(context->CreateSolidColorBrush(to_d2d_color(color), &brush));
     };
@@ -910,14 +914,16 @@ bool AnalyzerView::ensure_resources(
     }
 
     const auto locale = language == core::Language::SimplifiedChinese ? L"zh-CN" : L"en-US";
+    const auto family = body_font_family(typography.fontFamily);
+    const auto scale = text_scale_factor(typography.textScale);
     const auto createFormat = [&](const float size, auto& format) {
         return SUCCEEDED(writeFactory->CreateTextFormat(
-            L"Segoe UI Variable Text",
+            family.data(),
             nullptr,
             DWRITE_FONT_WEIGHT_NORMAL,
             DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL,
-            size,
+            size * scale,
             locale,
             &format));
     };
@@ -1201,11 +1207,12 @@ bool AnalyzerView::draw(
     render::GraphicsDevice& graphics,
     const core::ThemeTokens& theme,
     const core::Language language,
+    const TypographySettings& typography,
     const float widthDip,
     const float heightDip,
     const float chartScale) {
     if (tree_ == nullptr || root_ >= tree_->nodes().size()
-        || !ensure_resources(graphics, theme, language)) {
+        || !ensure_resources(graphics, theme, language, typography)) {
         return false;
     }
     chartScale_ = std::clamp(chartScale, 0.60F, 1.00F);

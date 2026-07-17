@@ -57,6 +57,7 @@ add_executable(diskbloom_render_smoke render_smoke_main.cpp)
 target_link_libraries(
     diskbloom_render_smoke
     PRIVATE
+        diskbloom_app
         diskbloom_core
         diskbloom_options
         diskbloom_render

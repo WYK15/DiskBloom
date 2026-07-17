@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app/appearance_settings.h"
 #include "app/analyzer_breadcrumb.h"
 #include "app/analyzer_geometry.h"
 #include "app/analyzer_hover_pulse.h"
@@ -173,6 +174,7 @@ public:
         render::GraphicsDevice& graphics,
         const core::ThemeTokens& theme,
         core::Language language,
+        const TypographySettings& typography,
         float widthDip,
         float heightDip,
         float chartScale);
@@ -196,7 +198,8 @@ private:
     [[nodiscard]] bool ensure_resources(
         render::GraphicsDevice& graphics,
         const core::ThemeTokens& theme,
-        core::Language language);
+        core::Language language,
+        const TypographySettings& typography);
     [[nodiscard]] bool ensure_geometry();
     [[nodiscard]] bool ensure_hover_pulse_geometry();
     [[nodiscard]] bool ensure_transition_geometry();

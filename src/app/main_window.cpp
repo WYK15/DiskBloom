@@ -150,8 +150,21 @@ bool MainWindow::render_frame() {
     const auto width = pixels_to_dip(client.right - client.left);
     const auto height = pixels_to_dip(client.bottom - client.top);
     const auto rendered = navigation_.view == MainContentView::Analyzer
-        ? analyzer_.draw(graphics_, theme, appearance_.language, width, height, 0.80F)
-        : overview_.draw(graphics_, theme, appearance_.language, width, height);
+        ? analyzer_.draw(
+              graphics_,
+              theme,
+              appearance_.language,
+              appearance_.typography,
+              width,
+              height,
+              chart_scale_factor(appearance_.chartScale))
+        : overview_.draw(
+              graphics_,
+              theme,
+              appearance_.language,
+              appearance_.typography,
+              width,
+              height);
     if (!rendered) {
         return false;
     }

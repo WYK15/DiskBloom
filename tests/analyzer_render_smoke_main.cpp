@@ -1,4 +1,5 @@
 #include "app/analyzer_view.h"
+#include "app/appearance_settings.h"
 #include "app/review_collector_interaction.h"
 #include "core/scan_tree.h"
 #include "core/scan_tree_exclusion.h"
@@ -20,6 +21,22 @@
 #include <vector>
 
 namespace {
+
+[[nodiscard]] bool frame_has_contrast(
+    const diskbloom::render::CapturedFrame& frame) noexcept {
+    if (frame.pixels.size() < 8U) {
+        return false;
+    }
+    for (std::size_t offset = 4U; offset + 3U < frame.pixels.size(); offset += 4U) {
+        if (!std::equal(
+                frame.pixels.begin(),
+                frame.pixels.begin() + 4,
+                frame.pixels.begin() + static_cast<std::ptrdiff_t>(offset))) {
+            return true;
+        }
+    }
+    return false;
+}
 
 [[nodiscard]] diskbloom::render::CapturedFrame crop_bottom(
     const diskbloom::render::CapturedFrame& source,
@@ -193,23 +210,113 @@ int main(const int argc, char** argv) {
     analyzer.set_review_summary(reviewNodes.size(), tree.node(root).logicalSize);
     analyzer.set_review_nodes(reviewNodes);
     const auto lightTheme = diskbloom::core::make_theme(false);
+    const diskbloom::app::TypographySettings smallSegoe{
+        .textScale = diskbloom::app::TextScalePreset::Percent80,
+        .fontFamily = diskbloom::app::FontFamilyPreset::SegoeUiVariable,
+    };
+    const diskbloom::app::TypographySettings largeYaHei{
+        .textScale = diskbloom::app::TextScalePreset::Percent120,
+        .fontFamily = diskbloom::app::FontFamilyPreset::MicrosoftYaHeiUi,
+    };
+    const diskbloom::app::TypographySettings smallArial{
+        .textScale = diskbloom::app::TextScalePreset::Percent80,
+        .fontFamily = diskbloom::app::FontFamilyPreset::Arial,
+    };
+    const diskbloom::app::TypographySettings largeConsolas{
+        .textScale = diskbloom::app::TextScalePreset::Percent120,
+        .fontFamily = diskbloom::app::FontFamilyPreset::Consolas,
+    };
     constexpr bool theme_modes[]{false, true};
     constexpr diskbloom::core::Language languages[]{
         diskbloom::core::Language::English,
         diskbloom::core::Language::SimplifiedChinese,
     };
+    const auto drawAnalyzerWithSettings = [&](
+        const diskbloom::core::ThemeTokens& theme,
+        const diskbloom::core::Language language,
+        const diskbloom::app::TypographySettings& typography,
+        const float chartScale,
+        diskbloom::render::CapturedFrame* capture = nullptr) {
+        return graphics.begin_draw(theme.window)
+            && analyzer.draw(
+                graphics,
+                theme,
+                language,
+                typography,
+                800.0F,
+                600.0F,
+                chartScale)
+            && SUCCEEDED(graphics.end_draw(capture));
+    };
     const auto drawAnalyzer = [&](const diskbloom::core::ThemeTokens& theme,
                                   const diskbloom::core::Language language,
                                   diskbloom::render::CapturedFrame* capture = nullptr) {
-        return graphics.begin_draw(theme.window)
-            && analyzer.draw(graphics, theme, language, 800.0F, 600.0F, 0.80F)
-            && SUCCEEDED(graphics.end_draw(capture));
+        return drawAnalyzerWithSettings(theme, language, smallSegoe, 0.80F, capture);
     };
     if (!drawAnalyzer(lightTheme, diskbloom::core::Language::English)) {
         DestroyWindow(window);
         return 3;
     }
+    diskbloom::render::CapturedFrame segoueFrame;
+    diskbloom::render::CapturedFrame yaHeiFrame;
+    diskbloom::render::CapturedFrame arialFrame;
+    diskbloom::render::CapturedFrame consolasFrame;
+    diskbloom::render::CapturedFrame repeatedSegoueFrame;
+    if (!drawAnalyzerWithSettings(
+            lightTheme,
+            diskbloom::core::Language::English,
+            smallSegoe,
+            0.60F,
+            &segoueFrame)
+        || !drawAnalyzerWithSettings(
+            diskbloom::core::make_theme(true),
+            diskbloom::core::Language::SimplifiedChinese,
+            largeYaHei,
+            1.00F,
+            &yaHeiFrame)
+        || !drawAnalyzerWithSettings(
+            diskbloom::core::make_theme(true),
+            diskbloom::core::Language::English,
+            smallArial,
+            1.00F,
+            &arialFrame)
+        || !drawAnalyzerWithSettings(
+            lightTheme,
+            diskbloom::core::Language::SimplifiedChinese,
+            largeConsolas,
+            0.60F,
+            &consolasFrame)
+        || !drawAnalyzerWithSettings(
+            lightTheme,
+            diskbloom::core::Language::English,
+            smallSegoe,
+            0.60F,
+            &repeatedSegoueFrame)
+        || !frame_has_contrast(segoueFrame)
+        || !frame_has_contrast(yaHeiFrame)
+        || !frame_has_contrast(arialFrame)
+        || !frame_has_contrast(consolasFrame)
+        || segoueFrame.pixels == consolasFrame.pixels
+        || segoueFrame.pixels != repeatedSegoueFrame.pixels) {
+        DestroyWindow(window);
+        return 90;
+    }
     if (!captureDirectory.empty()) {
+        if (!save_png(
+                segoueFrame,
+                captureDirectory / L"typography-segoe-80-chart-60-light-en.png")
+            || !save_png(
+                yaHeiFrame,
+                captureDirectory / L"typography-yahei-120-chart-100-dark-zh.png")
+            || !save_png(
+                arialFrame,
+                captureDirectory / L"typography-arial-80-chart-100-dark-en.png")
+            || !save_png(
+                consolasFrame,
+                captureDirectory / L"typography-consolas-120-chart-60-light-zh.png")) {
+            DestroyWindow(window);
+            return 91;
+        }
         diskbloom::render::CapturedFrame capture;
         if (!drawAnalyzer(lightTheme, diskbloom::core::Language::English, &capture)
             || !save_png(capture, captureDirectory / L"breadcrumb-compact-light-en.png")) {
@@ -345,6 +452,7 @@ int main(const int argc, char** argv) {
                 graphics,
                 diskbloom::core::make_theme(true),
                 diskbloom::core::Language::SimplifiedChinese,
+                smallSegoe,
                 1200.0F,
                 720.0F,
                 0.80F)

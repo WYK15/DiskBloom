@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "app/appearance_settings.h"
 #include "core/language.h"
 #include "core/theme.h"
 #include "app/scan_ui_state.h"
@@ -84,6 +85,7 @@ public:
         render::GraphicsDevice& graphics,
         const core::ThemeTokens& theme,
         core::Language language,
+        const TypographySettings& typography,
         float widthDip,
         float heightDip);
 
@@ -98,7 +100,8 @@ private:
     [[nodiscard]] bool ensure_resources(
         render::GraphicsDevice& graphics,
         const core::ThemeTokens& theme,
-        core::Language language);
+        core::Language language,
+        const TypographySettings& typography);
 
     std::vector<platform::windows::VolumeSnapshot> volumes_;
     std::vector<VolumeScanStatus> scan_statuses_;
