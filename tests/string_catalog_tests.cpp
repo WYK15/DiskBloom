@@ -49,6 +49,21 @@ TEST_CASE(string_catalog_switches_language) {
     CHECK(get_string(Language::English, StringId::RestoreItem) == L"Restore item");
     CHECK(get_string(Language::SimplifiedChinese, StringId::RestoreItem)
         == L"\u6062\u590d\u9879\u76ee");
+    CHECK(get_string(Language::English, StringId::TextSize) == L"Text size");
+    CHECK(get_string(Language::SimplifiedChinese, StringId::TextSize)
+        == L"\u6587\u5b57\u5927\u5c0f");
+    CHECK(get_string(Language::English, StringId::Font) == L"Font");
+    CHECK(get_string(Language::SimplifiedChinese, StringId::Font)
+        == L"\u5b57\u4f53");
+    CHECK(get_string(Language::English, StringId::ChartSize) == L"Chart size");
+    CHECK(get_string(Language::SimplifiedChinese, StringId::ChartSize)
+        == L"\u5706\u56fe\u5927\u5c0f");
+    CHECK(get_string(Language::English, StringId::Percent80) == L"80%");
+    CHECK(get_string(Language::SimplifiedChinese, StringId::Percent80) == L"80%");
+    CHECK(get_string(Language::English, StringId::FontSegoeUiVariable)
+        == L"Segoe UI Variable");
+    CHECK(get_string(Language::SimplifiedChinese, StringId::FontConsolas)
+        == L"Consolas");
 }
 
 TEST_CASE(string_catalog_rejects_invalid_identifier) {

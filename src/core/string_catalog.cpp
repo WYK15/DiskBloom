@@ -48,6 +48,20 @@ constexpr std::array<std::wstring_view, string_count> english{
     L"Off",
     L"Drag files here to collect them for deletion",
     L"Restore item",
+    L"Text size",
+    L"Font",
+    L"Chart size",
+    L"60%",
+    L"70%",
+    L"80%",
+    L"90%",
+    L"100%",
+    L"110%",
+    L"120%",
+    L"Segoe UI Variable",
+    L"Microsoft YaHei UI",
+    L"Arial",
+    L"Consolas",
 };
 
 constexpr std::array<std::wstring_view, string_count> simplified_chinese{
@@ -90,6 +104,20 @@ constexpr std::array<std::wstring_view, string_count> simplified_chinese{
     L"\u5173\u95ed",
     L"\u5c06\u6587\u4ef6\u62d6\u653e\u81f3\u6b64\uff0c\u4ee5\u6536\u96c6\u9700\u8981\u5220\u9664\u7684\u6587\u4ef6",
     L"\u6062\u590d\u9879\u76ee",
+    L"\u6587\u5b57\u5927\u5c0f",
+    L"\u5b57\u4f53",
+    L"\u5706\u56fe\u5927\u5c0f",
+    L"60%",
+    L"70%",
+    L"80%",
+    L"90%",
+    L"100%",
+    L"110%",
+    L"120%",
+    L"Segoe UI Variable",
+    L"Microsoft YaHei UI",
+    L"Arial",
+    L"Consolas",
 };
 
 static_assert(english.size() == string_count);
