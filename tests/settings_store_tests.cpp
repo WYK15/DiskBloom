@@ -5,6 +5,7 @@
 #include <Windows.h>
 
 #include <atomic>
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -44,7 +45,6 @@ using diskbloom::core::ThemeMode;
 using diskbloom::platform::windows::load_legacy_directory_transition_mode;
 using diskbloom::platform::windows::load_settings;
 using diskbloom::platform::windows::save_settings_atomic;
-using diskbloom::platform::windows::save_directory_transition_mode_atomic;
 
 TEST_CASE(settings_store_round_trips_complete_v2_snapshot) {
     const auto path = unique_settings_test_path();
@@ -106,16 +106,26 @@ TEST_CASE(settings_store_v2_invalid_fields_fall_back_independently) {
 
 TEST_CASE(settings_store_round_trips_legacy_directory_transition_modes) {
     const auto path = unique_settings_test_path();
+    struct LegacyCase {
+        DirectoryTransitionMode mode;
+        const char* contents;
+    };
+    constexpr std::array cases{
+        LegacyCase{
+            DirectoryTransitionMode::AlwaysOn,
+            "DiskBloomSettings/1\ndirectoryTransitions=always\n"},
+        LegacyCase{
+            DirectoryTransitionMode::FollowSystem,
+            "DiskBloomSettings/1\ndirectoryTransitions=system\n"},
+        LegacyCase{
+            DirectoryTransitionMode::Off,
+            "DiskBloomSettings/1\ndirectoryTransitions=off\n"},
+    };
 
-    for (const auto mode : {
-             DirectoryTransitionMode::AlwaysOn,
-             DirectoryTransitionMode::FollowSystem,
-             DirectoryTransitionMode::Off}) {
-        const auto saved = save_directory_transition_mode_atomic(path, mode);
-        CHECK(saved);
-        if (!saved) {
-            cleanup_settings_test_path(path);
-            return;
+    for (const auto& legacyCase : cases) {
+        {
+            std::ofstream output(path, std::ios::binary | std::ios::trunc);
+            output << legacyCase.contents;
         }
         const auto loaded = load_legacy_directory_transition_mode(path);
         CHECK(loaded.has_value());
@@ -123,7 +133,7 @@ TEST_CASE(settings_store_round_trips_legacy_directory_transition_modes) {
             cleanup_settings_test_path(path);
             return;
         }
-        CHECK(*loaded == mode);
+        CHECK(*loaded == legacyCase.mode);
     }
 
     cleanup_settings_test_path(path);

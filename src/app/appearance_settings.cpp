@@ -155,6 +155,16 @@ bool apply_settings_command(
     }
 }
 
+std::optional<AppearanceSettings> make_settings_candidate(
+    const AppearanceSettings& active,
+    const SettingsCommand command) noexcept {
+    auto candidate = active;
+    if (!apply_settings_command(candidate, command) || candidate == active) {
+        return std::nullopt;
+    }
+    return candidate;
+}
+
 bool apply_launch_argument(
     AppearanceSettings& settings,
     const std::wstring_view argument) noexcept {

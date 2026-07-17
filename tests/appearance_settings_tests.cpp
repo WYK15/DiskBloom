@@ -18,6 +18,7 @@ using diskbloom::app::body_font_family;
 using diskbloom::app::chart_scale_factor;
 using diskbloom::app::display_font_family;
 using diskbloom::app::is_directory_transition_command;
+using diskbloom::app::make_settings_candidate;
 using diskbloom::app::resolve_directory_transitions;
 using diskbloom::app::text_scale_factor;
 using diskbloom::core::Language;
@@ -152,6 +153,23 @@ TEST_CASE(appearance_settings_reject_unknown_command) {
     CHECK(!apply_settings_command(settings, static_cast<SettingsCommand>(9999)));
     CHECK(settings.themeMode == ThemeMode::Dark);
     CHECK(settings.language == Language::English);
+}
+
+TEST_CASE(appearance_settings_builds_only_changed_valid_candidates) {
+    const AppearanceSettings active{ThemeMode::System, Language::English};
+    const auto candidate = make_settings_candidate(
+        active,
+        SettingsCommand::ChartScale60);
+    CHECK(candidate.has_value());
+    if (candidate.has_value()) {
+        CHECK(candidate->chartScale == ChartScalePreset::Percent60);
+        CHECK(*candidate != active);
+    }
+    CHECK(active.chartScale == ChartScalePreset::Percent80);
+    CHECK(!make_settings_candidate(active, SettingsCommand::TextScale100).has_value());
+    CHECK(!make_settings_candidate(
+        active,
+        static_cast<SettingsCommand>(9999)).has_value());
 }
 
 TEST_CASE(appearance_settings_accept_qa_launch_arguments) {

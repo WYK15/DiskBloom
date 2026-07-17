@@ -21,11 +21,4 @@ load_legacy_directory_transition_mode(const std::filesystem::path& path) noexcep
     const std::filesystem::path& path,
     const app::AppearanceSettings& settings) noexcept;
 
-[[nodiscard]] std::optional<app::DirectoryTransitionMode>
-load_directory_transition_mode(const std::filesystem::path& path) noexcept;
-
-[[nodiscard]] bool save_directory_transition_mode_atomic(
-    const std::filesystem::path& path,
-    app::DirectoryTransitionMode mode) noexcept;
-
 } // namespace diskbloom::platform::windows

@@ -4,6 +4,7 @@
 #include "core/theme.h"
 
 #include <cstdint>
+#include <optional>
 #include <string_view>
 
 namespace diskbloom::app {
@@ -92,6 +93,9 @@ struct AppearanceSettings {
 
 [[nodiscard]] bool apply_settings_command(
     AppearanceSettings& settings,
+    SettingsCommand command) noexcept;
+[[nodiscard]] std::optional<AppearanceSettings> make_settings_candidate(
+    const AppearanceSettings& active,
     SettingsCommand command) noexcept;
 [[nodiscard]] bool apply_launch_argument(
     AppearanceSettings& settings,

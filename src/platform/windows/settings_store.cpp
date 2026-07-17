@@ -380,23 +380,4 @@ bool save_settings_atomic(
     }
 }
 
-std::optional<app::DirectoryTransitionMode> load_directory_transition_mode(
-    const std::filesystem::path& path) noexcept {
-    return load_legacy_directory_transition_mode(path);
-}
-
-bool save_directory_transition_mode_atomic(
-    const std::filesystem::path& path,
-    const app::DirectoryTransitionMode mode) noexcept {
-    switch (mode) {
-    case app::DirectoryTransitionMode::AlwaysOn:
-        return write_atomic(path, always_on_settings);
-    case app::DirectoryTransitionMode::FollowSystem:
-        return write_atomic(path, follow_system_settings);
-    case app::DirectoryTransitionMode::Off:
-        return write_atomic(path, off_settings);
-    }
-    return false;
-}
-
 } // namespace diskbloom::platform::windows

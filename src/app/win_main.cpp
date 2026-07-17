@@ -4,6 +4,9 @@
 #include <Windows.h>
 #include <shellapi.h>
 
+#include <filesystem>
+#include <system_error>
+
 int WINAPI wWinMain(
     const HINSTANCE instance,
     HINSTANCE,
@@ -18,9 +21,20 @@ int WINAPI wWinMain(
             : diskbloom::core::Language::English,
     };
     const auto settingsPath = diskbloom::platform::windows::default_settings_path();
-    if (const auto saved =
-            diskbloom::platform::windows::load_directory_transition_mode(settingsPath)) {
-        appearance.directoryTransitions = *saved;
+    if (const auto saved = diskbloom::platform::windows::load_settings(
+            settingsPath,
+            appearance)) {
+        appearance = *saved;
+    } else {
+        std::error_code existsError;
+        const auto v2Exists = std::filesystem::exists(settingsPath, existsError);
+        if (!v2Exists && !existsError) {
+            if (const auto legacy =
+                    diskbloom::platform::windows::load_legacy_directory_transition_mode(
+                        diskbloom::platform::windows::legacy_settings_path())) {
+                appearance.directoryTransitions = *legacy;
+            }
+        }
     }
     bool smoke_test = false;
     int argument_count = 0;

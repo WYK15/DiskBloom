@@ -773,20 +773,24 @@ void MainWindow::show_settings_menu() {
     const auto root = CreatePopupMenu();
     const auto theme_menu = CreatePopupMenu();
     const auto language_menu = CreatePopupMenu();
+    const auto text_size_menu = CreatePopupMenu();
+    const auto font_menu = CreatePopupMenu();
+    const auto chart_size_menu = CreatePopupMenu();
     const auto transitions_menu = CreatePopupMenu();
-    if (root == nullptr || theme_menu == nullptr || language_menu == nullptr
-        || transitions_menu == nullptr) {
-        if (root != nullptr) {
-            DestroyMenu(root);
-        }
-        if (theme_menu != nullptr) {
-            DestroyMenu(theme_menu);
-        }
-        if (language_menu != nullptr) {
-            DestroyMenu(language_menu);
-        }
-        if (transitions_menu != nullptr) {
-            DestroyMenu(transitions_menu);
+    const std::array menus{
+        root,
+        theme_menu,
+        language_menu,
+        text_size_menu,
+        font_menu,
+        chart_size_menu,
+        transitions_menu,
+    };
+    if (std::ranges::find(menus, nullptr) != menus.end()) {
+        for (const auto menu : menus) {
+            if (menu != nullptr) {
+                DestroyMenu(menu);
+            }
         }
         return;
     }
@@ -831,6 +835,79 @@ void MainWindow::show_settings_menu() {
         appearance_.language == core::Language::SimplifiedChinese);
 
     append_checked(
+        text_size_menu,
+        SettingsCommand::TextScale80,
+        menu_text(appearance_.language, core::StringId::Percent80),
+        appearance_.typography.textScale == TextScalePreset::Percent80);
+    append_checked(
+        text_size_menu,
+        SettingsCommand::TextScale90,
+        menu_text(appearance_.language, core::StringId::Percent90),
+        appearance_.typography.textScale == TextScalePreset::Percent90);
+    append_checked(
+        text_size_menu,
+        SettingsCommand::TextScale100,
+        menu_text(appearance_.language, core::StringId::Percent100),
+        appearance_.typography.textScale == TextScalePreset::Percent100);
+    append_checked(
+        text_size_menu,
+        SettingsCommand::TextScale110,
+        menu_text(appearance_.language, core::StringId::Percent110),
+        appearance_.typography.textScale == TextScalePreset::Percent110);
+    append_checked(
+        text_size_menu,
+        SettingsCommand::TextScale120,
+        menu_text(appearance_.language, core::StringId::Percent120),
+        appearance_.typography.textScale == TextScalePreset::Percent120);
+
+    append_checked(
+        font_menu,
+        SettingsCommand::FontSegoeUiVariable,
+        menu_text(appearance_.language, core::StringId::FontSegoeUiVariable),
+        appearance_.typography.fontFamily == FontFamilyPreset::SegoeUiVariable);
+    append_checked(
+        font_menu,
+        SettingsCommand::FontMicrosoftYaHeiUi,
+        menu_text(appearance_.language, core::StringId::FontMicrosoftYaHeiUi),
+        appearance_.typography.fontFamily == FontFamilyPreset::MicrosoftYaHeiUi);
+    append_checked(
+        font_menu,
+        SettingsCommand::FontArial,
+        menu_text(appearance_.language, core::StringId::FontArial),
+        appearance_.typography.fontFamily == FontFamilyPreset::Arial);
+    append_checked(
+        font_menu,
+        SettingsCommand::FontConsolas,
+        menu_text(appearance_.language, core::StringId::FontConsolas),
+        appearance_.typography.fontFamily == FontFamilyPreset::Consolas);
+
+    append_checked(
+        chart_size_menu,
+        SettingsCommand::ChartScale60,
+        menu_text(appearance_.language, core::StringId::Percent60),
+        appearance_.chartScale == ChartScalePreset::Percent60);
+    append_checked(
+        chart_size_menu,
+        SettingsCommand::ChartScale70,
+        menu_text(appearance_.language, core::StringId::Percent70),
+        appearance_.chartScale == ChartScalePreset::Percent70);
+    append_checked(
+        chart_size_menu,
+        SettingsCommand::ChartScale80,
+        menu_text(appearance_.language, core::StringId::Percent80),
+        appearance_.chartScale == ChartScalePreset::Percent80);
+    append_checked(
+        chart_size_menu,
+        SettingsCommand::ChartScale90,
+        menu_text(appearance_.language, core::StringId::Percent90),
+        appearance_.chartScale == ChartScalePreset::Percent90);
+    append_checked(
+        chart_size_menu,
+        SettingsCommand::ChartScale100,
+        menu_text(appearance_.language, core::StringId::Percent100),
+        appearance_.chartScale == ChartScalePreset::Percent100);
+
+    append_checked(
         transitions_menu,
         SettingsCommand::DirectoryTransitionsAlwaysOn,
         menu_text(appearance_.language, core::StringId::AnimationsAlwaysOn),
@@ -848,10 +925,24 @@ void MainWindow::show_settings_menu() {
 
     const auto theme_label = menu_text(appearance_.language, core::StringId::Theme);
     const auto language_label = menu_text(appearance_.language, core::StringId::Language);
+    const auto text_size_label = menu_text(appearance_.language, core::StringId::TextSize);
+    const auto font_label = menu_text(appearance_.language, core::StringId::Font);
+    const auto chart_size_label = menu_text(appearance_.language, core::StringId::ChartSize);
     const auto transitions_label =
         menu_text(appearance_.language, core::StringId::DirectoryTransitions);
     AppendMenuW(root, MF_POPUP, reinterpret_cast<UINT_PTR>(theme_menu), theme_label.c_str());
     AppendMenuW(root, MF_POPUP, reinterpret_cast<UINT_PTR>(language_menu), language_label.c_str());
+    AppendMenuW(
+        root,
+        MF_POPUP,
+        reinterpret_cast<UINT_PTR>(text_size_menu),
+        text_size_label.c_str());
+    AppendMenuW(root, MF_POPUP, reinterpret_cast<UINT_PTR>(font_menu), font_label.c_str());
+    AppendMenuW(
+        root,
+        MF_POPUP,
+        reinterpret_cast<UINT_PTR>(chart_size_menu),
+        chart_size_label.c_str());
     AppendMenuW(
         root,
         MF_POPUP,
@@ -870,15 +961,24 @@ void MainWindow::show_settings_menu() {
     DestroyMenu(root);
 
     const auto command = static_cast<SettingsCommand>(selected);
-    if (!apply_settings_command(appearance_, command)) {
+    const auto candidate = make_settings_candidate(appearance_, command);
+    if (!candidate.has_value()) {
         return;
     }
-    if (is_directory_transition_command(command)) {
-        const auto settingsPath = platform::windows::default_settings_path();
-        const auto saved = platform::windows::save_directory_transition_mode_atomic(
-            settingsPath,
-            appearance_.directoryTransitions);
-        (void)saved;
+    if (!platform::windows::save_settings_atomic(
+            platform::windows::default_settings_path(),
+            *candidate)) {
+        MessageBoxW(
+            window_,
+            core::get_string(appearance_.language, core::StringId::ActionFailed).data(),
+            core::get_string(appearance_.language, core::StringId::AppTitle).data(),
+            MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    const auto prior = appearance_;
+    appearance_ = *candidate;
+    if (prior.directoryTransitions != appearance_.directoryTransitions) {
         apply_directory_transition_policy_change();
     }
 
