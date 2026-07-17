@@ -242,6 +242,14 @@ AnalyzerLayout compute_analyzer_layout(
     };
 }
 
+float compute_analyzer_center_text_size(
+    const float textScale,
+    const float chartScale) noexcept {
+    const auto boundedTextScale = std::clamp(textScale, 0.80F, 1.20F);
+    const auto boundedChartScale = std::clamp(chartScale, 0.60F, 1.00F);
+    return std::min(18.0F * boundedTextScale, 27.0F * boundedChartScale);
+}
+
 AnalyzerHitTarget hit_test_analyzer_layout(
     const AnalyzerLayout& layout,
     const float xDip,
@@ -368,6 +376,7 @@ struct AnalyzerView::Resources {
     core::Rgba themeKey{};
     core::Language language = core::Language::English;
     TypographySettings typography{};
+    float chartScale = 0.80F;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> header;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> surface;
     Microsoft::WRL::ComPtr<ID2D1SolidColorBrush> panel;
@@ -874,7 +883,8 @@ bool AnalyzerView::ensure_resources(
     render::GraphicsDevice& graphics,
     const core::ThemeTokens& theme,
     const core::Language language,
-    const TypographySettings& typography) {
+    const TypographySettings& typography,
+    const float chartScale) {
     auto* context = graphics.d2d_context();
     auto* writeFactory = graphics.dwrite_factory();
     if (context == nullptr || writeFactory == nullptr) {
@@ -883,7 +893,8 @@ bool AnalyzerView::ensure_resources(
     if (resources_ != nullptr && resources_->context == context
         && same_color(resources_->themeKey, theme.window)
         && resources_->language == language
-        && resources_->typography == typography) {
+        && resources_->typography == typography
+        && resources_->chartScale == chartScale) {
         return true;
     }
 
@@ -892,6 +903,7 @@ bool AnalyzerView::ensure_resources(
     resources->themeKey = theme.window;
     resources->language = language;
     resources->typography = typography;
+    resources->chartScale = chartScale;
     const auto makeBrush = [&](const core::Rgba color, auto& brush) {
         return SUCCEEDED(context->CreateSolidColorBrush(to_d2d_color(color), &brush));
     };
@@ -923,18 +935,20 @@ bool AnalyzerView::ensure_resources(
             DWRITE_FONT_WEIGHT_NORMAL,
             DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL,
-            size * scale,
+            size,
             locale,
             &format));
     };
-    if (!createFormat(24.0F, resources->titleFormat)
-        || !createFormat(15.0F, resources->breadcrumbFormat)
-        || !createFormat(27.0F, resources->detailHeadingFormat)
-        || !createFormat(18.0F, resources->detailFormat)
-        || !createFormat(18.0F, resources->centerFormat)
-        || !createFormat(16.0F, resources->rowNameFormat)
-        || !createFormat(16.0F, resources->rowSizeFormat)
-        || !createFormat(16.0F, resources->buttonFormat)) {
+    if (!createFormat(24.0F * scale, resources->titleFormat)
+        || !createFormat(15.0F * scale, resources->breadcrumbFormat)
+        || !createFormat(27.0F * scale, resources->detailHeadingFormat)
+        || !createFormat(18.0F * scale, resources->detailFormat)
+        || !createFormat(
+            compute_analyzer_center_text_size(scale, chartScale),
+            resources->centerFormat)
+        || !createFormat(16.0F * scale, resources->rowNameFormat)
+        || !createFormat(16.0F * scale, resources->rowSizeFormat)
+        || !createFormat(16.0F * scale, resources->buttonFormat)) {
         return false;
     }
     resources->titleFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
@@ -1211,11 +1225,11 @@ bool AnalyzerView::draw(
     const float widthDip,
     const float heightDip,
     const float chartScale) {
+    chartScale_ = std::clamp(chartScale, 0.60F, 1.00F);
     if (tree_ == nullptr || root_ >= tree_->nodes().size()
-        || !ensure_resources(graphics, theme, language, typography)) {
+        || !ensure_resources(graphics, theme, language, typography, chartScale_)) {
         return false;
     }
-    chartScale_ = std::clamp(chartScale, 0.60F, 1.00F);
     layout_ = compute_analyzer_layout(
         widthDip,
         heightDip,

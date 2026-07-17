@@ -12,6 +12,7 @@ using diskbloom::app::AnalyzerBreadcrumbLayout;
 using diskbloom::app::BreadcrumbSegmentLayout;
 using diskbloom::app::AnalyzerRectF;
 using diskbloom::app::compute_analyzer_layout;
+using diskbloom::app::compute_analyzer_center_text_size;
 using diskbloom::app::compute_review_collector_layout;
 using diskbloom::app::hit_test_analyzer_layout;
 using diskbloom::app::is_analyzer_header_interactive_point;
@@ -101,6 +102,12 @@ TEST_CASE(analyzer_layout_scales_chart_radius_for_every_supported_preset) {
             == (layout.chartBounds.left + layout.chartBounds.right) * 0.5F);
     }
     CHECK(AnalyzerCommandKind::RestoreReviewItem != AnalyzerCommandKind::ConfirmReview);
+}
+
+TEST_CASE(analyzer_center_text_size_respects_text_scale_and_small_chart_bounds) {
+    CHECK(std::abs(compute_analyzer_center_text_size(1.00F, 0.80F) - 18.0F) < 0.001F);
+    CHECK(std::abs(compute_analyzer_center_text_size(1.20F, 1.00F) - 21.6F) < 0.001F);
+    CHECK(std::abs(compute_analyzer_center_text_size(1.20F, 0.60F) - 16.2F) < 0.001F);
 }
 
 TEST_CASE(analyzer_hit_test_distinguishes_back_chart_and_empty_space) {

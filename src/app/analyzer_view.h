@@ -95,6 +95,10 @@ enum class AnalyzerHitTarget {
     std::size_t depthCount,
     float chartScale) noexcept;
 
+[[nodiscard]] float compute_analyzer_center_text_size(
+    float textScale,
+    float chartScale) noexcept;
+
 [[nodiscard]] AnalyzerHitTarget hit_test_analyzer_layout(
     const AnalyzerLayout& layout,
     float xDip,
@@ -199,7 +203,8 @@ private:
         render::GraphicsDevice& graphics,
         const core::ThemeTokens& theme,
         core::Language language,
-        const TypographySettings& typography);
+        const TypographySettings& typography,
+        float chartScale);
     [[nodiscard]] bool ensure_geometry();
     [[nodiscard]] bool ensure_hover_pulse_geometry();
     [[nodiscard]] bool ensure_transition_geometry();
