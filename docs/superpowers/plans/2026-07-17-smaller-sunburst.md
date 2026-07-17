@@ -27,7 +27,7 @@
 - Consumes: `compute_analyzer_layout(float widthDip, float heightDip, std::size_t depthCount)`.
 - Produces: the same `AnalyzerLayout` contract with chart radius scaled by `0.80F`.
 
-- [ ] **Step 1: Write the failing radius test**
+- [x] **Step 1: Write the failing radius test**
 
 Rename the existing scale test and change its expected factor:
 
@@ -44,7 +44,7 @@ TEST_CASE(analyzer_layout_scales_chart_radius_to_eighty_percent) {
 }
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests
@@ -53,7 +53,7 @@ build/windows-debug/tests/diskbloom_tests.exe
 
 Expected: `analyzer_layout_scales_chart_radius_to_eighty_percent` fails because the implementation still multiplies by `0.91F`.
 
-- [ ] **Step 3: Implement the 80-percent scale**
+- [x] **Step 3: Implement the 80-percent scale**
 
 In `compute_analyzer_layout`, change only the final scale factor:
 
@@ -61,7 +61,7 @@ In `compute_analyzer_layout`, change only the final scale factor:
 const auto radius = responsiveRadius * 0.80F;
 ```
 
-- [ ] **Step 4: Verify unit and render behavior**
+- [x] **Step 4: Verify unit and render behavior**
 
 ```powershell
 cmake --build --preset windows-debug --target diskbloom_tests diskbloom_analyzer_render_smoke
@@ -70,7 +70,7 @@ ctest --preset windows-debug -R "diskbloom_tests|diskbloom_analyzer_render_smoke
 
 Expected: both tests pass; existing containment, center, ring-width, hit-test, theme, language, and transition assertions remain green.
 
-- [ ] **Step 5: Verify Release and commit**
+- [x] **Step 5: Verify Release and commit**
 
 ```powershell
 cmake --build --preset windows-release --target DiskBloom diskbloom_tests diskbloom_analyzer_render_smoke

@@ -202,7 +202,7 @@ AnalyzerLayout compute_analyzer_layout(
     const auto responsiveRadius = std::max(
         20.0F,
         std::min((chartAreaRight - 48.0F) * 0.5F, (actionTop - headerHeight - 24.0F) * 0.5F));
-    const auto radius = responsiveRadius * 0.91F;
+    const auto radius = responsiveRadius * 0.80F;
     const auto bandCount = static_cast<float>(std::max<std::size_t>(depthCount, 1U));
     const auto innerRadius = radius * 0.22F;
 

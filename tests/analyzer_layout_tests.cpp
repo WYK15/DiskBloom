@@ -89,12 +89,12 @@ TEST_CASE(analyzer_layout_chart_geometry_matches_chart_bounds) {
         < 0.001F);
 }
 
-TEST_CASE(analyzer_layout_scales_chart_radius_down_by_nine_percent) {
+TEST_CASE(analyzer_layout_scales_chart_radius_to_eighty_percent) {
     const auto layout = compute_analyzer_layout(1200.0F, 720.0F, 6U);
     const auto radius = (layout.chartBounds.right - layout.chartBounds.left) * 0.5F;
     constexpr float unscaledResponsiveRadius = 288.0F;
 
-    CHECK(std::abs(radius - unscaledResponsiveRadius * 0.91F) < 0.001F);
+    CHECK(std::abs(radius - unscaledResponsiveRadius * 0.80F) < 0.001F);
     CHECK(layout.chartGeometry.centerX
         == (layout.chartBounds.left + layout.chartBounds.right) * 0.5F);
     CHECK(AnalyzerCommandKind::RestoreReviewItem != AnalyzerCommandKind::ConfirmReview);
