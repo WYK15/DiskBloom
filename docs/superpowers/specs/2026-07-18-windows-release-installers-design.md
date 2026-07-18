@@ -3,7 +3,7 @@
 ## Goal
 
 Publish native Windows x64 MSI and EXE installers as attachments whenever a
-GitHub Release is published. Both installers target all users, request
+GitHub Release is published. Both installer formats target all users, request
 elevation, and offer a desktop-shortcut option that is selected by default.
 
 ## Scope
@@ -32,9 +32,11 @@ The workflow checks out the commit referenced by the release tag and derives
 both installer definitions so executable metadata, installer metadata, and
 filenames cannot drift.
 
-The published assets are named:
+WiX produces one MSI per UI culture, while Inno Setup produces one EXE that
+selects its UI language at startup. The published assets are named:
 
-- `DiskBloom-X.Y.Z-windows-x64.msi`
+- `DiskBloom-X.Y.Z-windows-x64-en-US.msi`
+- `DiskBloom-X.Y.Z-windows-x64-zh-CN.msi`
 - `DiskBloom-X.Y.Z-windows-x64-setup.exe`
 
 The workflow grants only `contents: write` and uploads both files to the
@@ -61,7 +63,7 @@ order:
 3. Configure and build DiskBloom in Release mode with the derived version.
 4. Run the complete Release CTest suite.
 5. Install the application into an isolated staging directory through CMake.
-6. Build the MSI from the staged files with WiX Toolset v4.
+6. Build the en-US and zh-CN MSIs from the staged files with WiX Toolset v4.
 7. Build the EXE installer from the same staged files with Inno Setup.
 8. Verify that both expected files exist and are non-empty.
 9. Upload to the triggering Release, or upload an Actions artifact for a
@@ -72,7 +74,7 @@ payload to prevent differences between the MSI and EXE contents.
 
 ## Installer Behavior
 
-Both installers:
+Both MSI cultures and the EXE installer:
 
 - install the 64-bit application for all users under
   `Program Files\DiskBloom`;
@@ -89,13 +91,16 @@ The desktop-shortcut prompt is localized as:
 - Simplified Chinese: `是否在桌面建立快捷方式`
 
 WiX implements the shortcut as an optional, default-enabled installer feature
-with localized UI. Inno Setup implements it as a default-enabled task. Removing
-or deselecting the option must leave no desktop shortcut behind.
+in both localized MSIs. Inno Setup implements it as a default-enabled task in
+one multilingual EXE. Removing or deselecting the option must leave no desktop
+shortcut behind.
 
-The installer UI supports English and Simplified Chinese. It follows the
-native installer theme and accessibility behavior supplied by WiX and Inno
-Setup; it does not reproduce the application's custom light/dark UI because it
-runs before application settings exist.
+The en-US MSI uses English, the zh-CN MSI uses Simplified Chinese, and the EXE
+selects English or Simplified Chinese from the Windows UI language while still
+allowing the user to change it. The installers follow the native installer
+theme and accessibility behavior supplied by WiX and Inno Setup; they do not
+reproduce the application's custom light/dark UI because they run before
+application settings exist.
 
 ## Packaging Sources
 
@@ -115,10 +120,10 @@ The workflow stops without uploading assets when:
 - the tag or manual version is invalid;
 - configuration, compilation, or tests fail;
 - WiX or Inno Setup fails;
-- an expected package is absent or empty;
+- any of the three expected packages is absent or empty;
 - release upload fails.
 
-No partial upload is attempted until both packages have passed validation. The
+No partial upload is attempted until all three packages have passed validation. The
 workflow prints resolved version, package paths, sizes, and SHA-256 hashes to
 make failures and release provenance diagnosable.
 
@@ -129,14 +134,15 @@ Implementation is complete when all of the following are demonstrated:
 - local Release build and complete CTest suite pass;
 - a packaging script rejects invalid versions and accepts `X.Y.Z`;
 - both package definitions compile on the selected GitHub runner image;
-- both packages contain the staged `DiskBloom.exe` and required runtime files;
+- all three packages contain the staged `DiskBloom.exe` and required runtime
+  files;
 - unattended installation and uninstallation smoke checks succeed in CI;
 - desktop shortcut creation is verified in the default-enabled path and its
   absence is verified when the option is disabled;
-- English and Simplified Chinese prompt strings are present in their respective
-  installer resources;
+- English and Simplified Chinese prompt strings are present in the matching MSI
+  resources and in the multilingual EXE resources;
 - manual workflow runs upload only an Actions artifact;
-- published-release runs attach both packages to the triggering Release.
+- published-release runs attach all three packages to the triggering Release.
 
 ## Security And Future Signing
 
@@ -146,5 +152,5 @@ explicit, and third-party actions are minimized.
 
 The first packages are unsigned and may trigger Windows SmartScreen warnings.
 A future signing stage can consume a certificate from GitHub Secrets, sign the
-application and both installers, verify signatures, and then continue to the
+application and all three installers, verify signatures, and then continue to the
 existing upload stage without changing the installer architecture.
