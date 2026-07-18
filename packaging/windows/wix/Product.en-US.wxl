@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WixLocalization xmlns="http://wixtoolset.org/schemas/v4/wxl"
+                 Culture="en-US"
+                 Codepage="1252">
+  <String Id="ProductLanguage" Value="1033" />
+  <String Id="DesktopShortcutTitle" Value="Create a desktop shortcut" />
+  <String Id="DesktopShortcutDescription" Value="Adds a DiskBloom shortcut to the desktop." />
+  <String Id="DowngradeError" Value="A newer version of DiskBloom is already installed." />
+</WixLocalization>

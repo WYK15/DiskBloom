@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WixLocalization xmlns="http://wixtoolset.org/schemas/v4/wxl"
+                 Culture="zh-CN"
+                 Codepage="936">
+  <String Id="ProductLanguage" Value="2052" />
+  <String Id="DesktopShortcutTitle" Value="是否在桌面建立快捷方式" />
+  <String Id="DesktopShortcutDescription" Value="在桌面添加 DiskBloom 快捷方式。" />
+  <String Id="DowngradeError" Value="已安装更高版本的 DiskBloom。" />
+</WixLocalization>

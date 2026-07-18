@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="DiskBloom"
+           Manufacturer="DiskBloom Contributors"
+           Version="$(ProductVersion)"
+           Language="!(loc.ProductLanguage)"
+           UpgradeCode="{3FE244EB-3C40-4A15-816C-7E4F0994D9D5}"
+           Scope="perMachine"
+           Compressed="yes">
+    <MajorUpgrade DowngradeErrorMessage="!(loc.DowngradeError)" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="DiskBloomIcon" SourceFile="$(IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="DiskBloomIcon" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="DiskBloom" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="PROGRAMMENUFOLDER" Name="DiskBloom" />
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder" />
+
+    <Feature Id="MainFeature"
+             Title="DiskBloom"
+             Level="1"
+             Display="expand"
+             AllowAbsent="no">
+      <ComponentGroupRef Id="AppPayload" />
+      <ComponentRef Id="StartMenuShortcutComponent" />
+      <Feature Id="DesktopShortcutFeature"
+               Title="!(loc.DesktopShortcutTitle)"
+               Description="!(loc.DesktopShortcutDescription)"
+               Level="1"
+               AllowAbsent="yes">
+        <ComponentRef Id="DesktopShortcutComponent" />
+      </Feature>
+    </Feature>
+
+    <ComponentGroup Id="AppPayload" Directory="INSTALLFOLDER">
+      <Component Id="DiskBloomExecutableComponent" Guid="*">
+        <File Id="DiskBloomExecutable" Source="$(StageDir)\DiskBloom.exe" KeyPath="yes" />
+      </Component>
+      <Component Id="ConcrtRuntimeComponent" Guid="*">
+        <File Id="ConcrtRuntime" Source="$(StageDir)\concrt140.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="MsvcRuntimeComponent" Guid="*">
+        <File Id="MsvcRuntime" Source="$(StageDir)\msvcp140.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="MsvcRuntime1Component" Guid="*">
+        <File Id="MsvcRuntime1" Source="$(StageDir)\msvcp140_1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="MsvcRuntime2Component" Guid="*">
+        <File Id="MsvcRuntime2" Source="$(StageDir)\msvcp140_2.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="MsvcAtomicWaitComponent" Guid="*">
+        <File Id="MsvcAtomicWait" Source="$(StageDir)\msvcp140_atomic_wait.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="MsvcCodecvtIdsComponent" Guid="*">
+        <File Id="MsvcCodecvtIds" Source="$(StageDir)\msvcp140_codecvt_ids.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="VcRuntimeComponent" Guid="*">
+        <File Id="VcRuntime" Source="$(StageDir)\vcruntime140.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="VcRuntime1Component" Guid="*">
+        <File Id="VcRuntime1" Source="$(StageDir)\vcruntime140_1.dll" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcutComponent"
+               Directory="PROGRAMMENUFOLDER"
+               Guid="{0C5F7299-9120-483A-B7A2-B7864FDA9BBF}">
+      <Shortcut Id="StartMenuShortcut"
+                Name="DiskBloom"
+                Target="[INSTALLFOLDER]DiskBloom.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveProgramMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKLM"
+                     Key="Software\DiskBloom"
+                     Name="StartMenuShortcut"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+
+    <Component Id="DesktopShortcutComponent"
+               Directory="DesktopFolder"
+               Guid="{279A285A-A1D9-4068-9E08-EFFF4FDE91D8}">
+      <Shortcut Id="DesktopShortcut"
+                Name="DiskBloom"
+                Target="[INSTALLFOLDER]DiskBloom.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RegistryValue Root="HKLM"
+                     Key="Software\DiskBloom"
+                     Name="DesktopShortcut"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+
+    <ui:WixUI Id="WixUI_FeatureTree" />
+    <UIRef Id="WixUI_ErrorProgressText" />
+  </Package>
+</Wix>
