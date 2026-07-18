@@ -33,6 +33,28 @@ function Get-DiskBloomPackagePaths {
     }
 }
 
+function Get-DiskBloomMsiProductCode {
+    param(
+        [Parameter(Mandatory = $true)][string]$Version,
+        [Parameter(Mandatory = $true)][string]$Culture
+    )
+
+    Assert-DiskBloomVersion $Version
+    if ($Culture -notin @('en-US', 'zh-CN')) {
+        throw "Unsupported MSI culture '$Culture'."
+    }
+
+    $seed = "3FE244EB-3C40-4A15-816C-7E4F0994D9D5|$Version|$Culture"
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha256.ComputeHash([Text.Encoding]::UTF8.GetBytes($seed))
+    } finally {
+        $sha256.Dispose()
+    }
+    $hex = ([BitConverter]::ToString($hash, 0, 16)).Replace('-', '')
+    return ([guid]::ParseExact($hex, 'N')).ToString('B').ToUpperInvariant()
+}
+
 function Assert-DiskBloomPackageSet {
     param([Parameter(Mandatory = $true)]$Paths)
 
@@ -49,5 +71,6 @@ Export-ModuleMember -Function @(
     'ConvertFrom-DiskBloomReleaseTag'
     'Assert-DiskBloomVersion'
     'Get-DiskBloomPackagePaths'
+    'Get-DiskBloomMsiProductCode'
     'Assert-DiskBloomPackageSet'
 )

@@ -122,6 +122,8 @@ foreach ($name in $requiredPayload) {
 }
 
 $paths = Get-DiskBloomPackagePaths -Version $Version -OutputDirectory $output
+$englishProductCode = Get-DiskBloomMsiProductCode -Version $Version -Culture 'en-US'
+$chineseProductCode = Get-DiskBloomMsiProductCode -Version $Version -Culture 'zh-CN'
 $wixSource = Join-Path $PSScriptRoot 'wix\Product.wxs'
 $icon = Join-Path $repoRoot 'src\resources\diskbloom_icon.ico'
 $wixCommon = @(
@@ -135,6 +137,7 @@ $wixCommon = @(
 )
 
 Invoke-Checked $wix ($wixCommon + @(
+    '-d', "ProductCode=$englishProductCode",
     '-culture', 'en-US',
     '-loc', (Join-Path $PSScriptRoot 'wix\Product.en-US.wxl'),
     '-intermediateFolder', (Join-Path $build 'wix-en-US'),
@@ -142,6 +145,7 @@ Invoke-Checked $wix ($wixCommon + @(
 )) 'Build en-US MSI'
 
 Invoke-Checked $wix ($wixCommon + @(
+    '-d', "ProductCode=$chineseProductCode",
     '-culture', 'zh-CN',
     '-loc', (Join-Path $PSScriptRoot 'wix\Product.zh-CN.wxl'),
     '-intermediateFolder', (Join-Path $build 'wix-zh-CN'),

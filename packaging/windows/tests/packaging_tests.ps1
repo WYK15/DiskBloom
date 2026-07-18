@@ -35,6 +35,16 @@ Assert-Throws { ConvertFrom-DiskBloomReleaseTag '1.2.3' } 'Missing v prefix was 
 Assert-Throws { ConvertFrom-DiskBloomReleaseTag 'v1.2.3-beta.1' } 'Prerelease tag was accepted.'
 Assert-Throws { Assert-DiskBloomVersion 'v1.2.3' } 'Manual version accepted a v prefix.'
 
+$englishProductCode = Get-DiskBloomMsiProductCode -Version '1.2.3' -Culture 'en-US'
+$englishProductCodeAgain = Get-DiskBloomMsiProductCode -Version '1.2.3' -Culture 'en-US'
+$chineseProductCode = Get-DiskBloomMsiProductCode -Version '1.2.3' -Culture 'zh-CN'
+$nextVersionProductCode = Get-DiskBloomMsiProductCode -Version '1.2.4' -Culture 'en-US'
+Assert-Equal $englishProductCode $englishProductCodeAgain 'MSI ProductCode is not repeatable.'
+if ($englishProductCode -eq $chineseProductCode) { throw 'MSI cultures share a ProductCode.' }
+if ($englishProductCode -eq $nextVersionProductCode) { throw 'MSI versions share a ProductCode.' }
+[void][guid]::Parse($englishProductCode)
+Assert-Throws { Get-DiskBloomMsiProductCode -Version '1.2.3' -Culture 'fr-FR' } 'Unsupported MSI culture was accepted.'
+
 $paths = Get-DiskBloomPackagePaths -Version '1.2.3' -OutputDirectory 'C:\packages'
 Assert-Equal 'DiskBloom-1.2.3-windows-x64-en-US.msi' (Split-Path $paths.EnglishMsi -Leaf) 'English MSI name drifted.'
 Assert-Equal 'DiskBloom-1.2.3-windows-x64-zh-CN.msi' (Split-Path $paths.ChineseMsi -Leaf) 'Chinese MSI name drifted.'

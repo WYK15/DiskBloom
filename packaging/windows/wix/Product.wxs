@@ -4,6 +4,7 @@
   <Package Name="DiskBloom"
            Manufacturer="DiskBloom Contributors"
            Version="$(ProductVersion)"
+           ProductCode="$(ProductCode)"
            Language="!(loc.ProductLanguage)"
            UpgradeCode="{3FE244EB-3C40-4A15-816C-7E4F0994D9D5}"
            Scope="perMachine"
