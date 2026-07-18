@@ -6,6 +6,7 @@ Date: 2026-07-18, Asia/Shanghai.
 
 - Automatic trigger: GitHub `release.published`.
 - Automatic tag: strict `vX.Y.Z`.
+- Prerelease behavior: skip the packaging job.
 - Manual input: strict `X.Y.Z`.
 - Runner: `windows-2022`.
 - Upload permission: repository-scoped `contents: write`.
@@ -48,9 +49,9 @@ Artifact evidence from the verified run:
 
 | Package | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `DiskBloom-0.1.0-windows-x64-en-US.msi` | 942080 | `C4E58F62FF3505E664B0BFCEBE8FD43F3AAF166A155865EE024F7B81437881BC` |
-| `DiskBloom-0.1.0-windows-x64-zh-CN.msi` | 933888 | `14AB87EB128DD75D836EBFC00C3C59D9A801EE936E8AE6DDFD08883E27D8F085` |
-| `DiskBloom-0.1.0-windows-x64-setup.exe` | 2342769 | `59FD47F1E119F4F98A71C16B7A0C2E3E4487CE42150CA82E063251B89CB40A15` |
+| `DiskBloom-0.1.0-windows-x64-en-US.msi` | 942080 | `83EC5585632F69CA8FBE89A00BE363B65781C0DDDDBA3E14C0C78BAE1938E767` |
+| `DiskBloom-0.1.0-windows-x64-zh-CN.msi` | 933888 | `BBF1800E59542269B820E7EE6646B8140DFDD850912534CC187B83F60CAB4E4A` |
+| `DiskBloom-0.1.0-windows-x64-setup.exe` | 2342894 | `EEA35F05872B09FE8F933C092ADD66E62B6CFBE84314C6B2581C13625491E882` |
 
 MSI ProductCodes are stable for a given version and culture:
 

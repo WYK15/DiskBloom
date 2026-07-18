@@ -75,10 +75,10 @@ under `Program Files\DiskBloom`, and enable the desktop shortcut by default.
 The MSI language is selected by the filename; the EXE selects English or
 Simplified Chinese from the Windows UI language and lets the user change it.
 
-Publishing a GitHub Release whose tag matches `vX.Y.Z` builds, verifies, and
-attaches all three installers. A manual `Windows Release Installers` workflow
-run accepts `X.Y.Z` and retains the packages as a workflow artifact without
-editing a Release.
+Publishing a non-prerelease GitHub Release whose tag matches `vX.Y.Z` builds,
+verifies, and attaches all three installers. Prereleases are skipped. A manual
+`Windows Release Installers` workflow run accepts `X.Y.Z` and retains the
+packages as a workflow artifact without editing a Release.
 
 The current installers are unsigned and can trigger a Windows SmartScreen
 warning.
