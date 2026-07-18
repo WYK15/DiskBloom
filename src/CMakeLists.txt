@@ -127,12 +127,20 @@ target_link_libraries(
 )
 target_include_directories(diskbloom_app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+set(DISKBLOOM_GENERATED_RESOURCE "${CMAKE_CURRENT_BINARY_DIR}/generated/diskbloom.rc")
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+configure_file(
+    resources/diskbloom.rc.in
+    "${DISKBLOOM_GENERATED_RESOURCE}"
+    @ONLY
+)
+
 add_executable(
     DiskBloom
     WIN32
         app/win_main.cpp
         resources/diskbloom.manifest
-        resources/diskbloom.rc
+        ${DISKBLOOM_GENERATED_RESOURCE}
 )
 target_link_libraries(DiskBloom PRIVATE diskbloom_app diskbloom_options shell32)
 

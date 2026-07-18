@@ -96,3 +96,12 @@ add_test(
 add_test(
     NAME diskbloom_app_smoke_light_zh
     COMMAND DiskBloom --smoke-test --theme=light --language=zh-CN)
+add_test(
+    NAME diskbloom_release_version_metadata
+    COMMAND
+        powershell
+        -NoProfile
+        -ExecutionPolicy Bypass
+        -File ${CMAKE_CURRENT_SOURCE_DIR}/release_version_tests.ps1
+        -Executable $<TARGET_FILE:DiskBloom>
+        -ExpectedVersion ${PROJECT_VERSION})

@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(DiskBloom VERSION 0.1.0 LANGUAGES CXX)
+set(DISKBLOOM_VERSION "0.1.0" CACHE STRING "DiskBloom semantic version")
+if(NOT DISKBLOOM_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "DISKBLOOM_VERSION must match X.Y.Z")
+endif()
+
+project(DiskBloom VERSION ${DISKBLOOM_VERSION} LANGUAGES CXX)
 
 set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION ".")
 include(InstallRequiredSystemLibraries)
