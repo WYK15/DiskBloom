@@ -1,0 +1,135 @@
+name: Windows Release Installers
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to build in X.Y.Z form
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-${{ github.event.release.tag_name || inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: windows-2022
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+    steps:
+      - name: Check out Release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          MANUAL_VERSION: ${{ inputs.version }}
+        run: |
+          Import-Module ./packaging/windows/Packaging.psm1 -Force
+          if ($env:EVENT_NAME -eq 'release') {
+            $version = ConvertFrom-DiskBloomReleaseTag $env:RELEASE_TAG
+          } else {
+            Assert-DiskBloomVersion $env:MANUAL_VERSION
+            $version = $env:MANUAL_VERSION
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Install WiX Toolset 4.0.6
+        shell: pwsh
+        run: |
+          $toolDirectory = Join-Path $env:RUNNER_TEMP 'wix'
+          dotnet tool install --tool-path $toolDirectory wix --version 4.0.6
+          if ($LASTEXITCODE -ne 0) { throw 'WiX installation failed.' }
+          $wix = Join-Path $toolDirectory 'wix.exe'
+          & $wix extension add --global WixToolset.UI.wixext/4.0.6
+          if ($LASTEXITCODE -ne 0) { throw 'WiX UI extension installation failed.' }
+          "WIX_PATH=$wix" >> $env:GITHUB_ENV
+
+      - name: Install Inno Setup 6.4.3
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'innosetup-6.4.3.exe'
+          Invoke-WebRequest `
+            -UseBasicParsing `
+            -Uri 'https://github.com/jrsoftware/issrc/releases/download/is-6_4_3/innosetup-6.4.3.exe' `
+            -OutFile $installer
+          $signature = Get-AuthenticodeSignature -LiteralPath $installer
+          if ($signature.Status -ne 'Valid' -or
+              $signature.SignerCertificate.Subject -notlike '*Pyrsys B.V.*') {
+            throw "Invalid Inno Setup signature: $($signature.Status) $($signature.SignerCertificate.Subject)"
+          }
+          $installDirectory = Join-Path $env:RUNNER_TEMP 'inno'
+          $process = Start-Process `
+            -FilePath $installer `
+            -ArgumentList @(
+              '/VERYSILENT',
+              '/SUPPRESSMSGBOXES',
+              '/NORESTART',
+              '/SP-',
+              "/DIR=$installDirectory"
+            ) `
+            -Wait `
+            -PassThru `
+            -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) {
+            throw "Inno Setup installation failed with exit code $($process.ExitCode)."
+          }
+          $compiler = Join-Path $installDirectory 'ISCC.exe'
+          if (-not (Test-Path -LiteralPath $compiler -PathType Leaf)) {
+            throw 'Inno Setup compiler was not installed.'
+          }
+          "INNO_COMPILER_PATH=$compiler" >> $env:GITHUB_ENV
+
+      - name: Build and test installers
+        shell: pwsh
+        run: |
+          ./packaging/windows/build-installers.ps1 `
+            -Version '${{ steps.version.outputs.value }}' `
+            -WixPath $env:WIX_PATH `
+            -InnoCompilerPath $env:INNO_COMPILER_PATH
+
+      - name: Verify install and uninstall behavior
+        shell: pwsh
+        run: |
+          ./packaging/windows/verify-installers.ps1 `
+            -Version '${{ steps.version.outputs.value }}' `
+            -OutputDirectory build/release-packages
+
+      - name: Retain manual-build packages
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiskBloom-${{ steps.version.outputs.value }}-windows-x64-installers
+          path: |
+            build/release-packages/DiskBloom-${{ steps.version.outputs.value }}-windows-x64-en-US.msi
+            build/release-packages/DiskBloom-${{ steps.version.outputs.value }}-windows-x64-zh-CN.msi
+            build/release-packages/DiskBloom-${{ steps.version.outputs.value }}-windows-x64-setup.exe
+          if-no-files-found: error
+
+      - name: Upload published Release assets
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          Import-Module ./packaging/windows/Packaging.psm1 -Force
+          $paths = Get-DiskBloomPackagePaths `
+            -Version '${{ steps.version.outputs.value }}' `
+            -OutputDirectory build/release-packages
+          Assert-DiskBloomPackageSet $paths | Format-Table Path, Hash
+          $assets = @($paths.EnglishMsi, $paths.ChineseMsi, $paths.SetupExe)
+          gh release upload $env:RELEASE_TAG @assets `
+            --clobber `
+            --repo $env:GITHUB_REPOSITORY
