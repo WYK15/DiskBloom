@@ -49,6 +49,40 @@ Outputs:
 - Executable: `build/windows-release/src/DiskBloom.exe`
 - Package: `build/windows-release/DiskBloom-0.1.0-windows-x64.zip`
 
+## Windows Installers
+
+The installer build requires WiX Toolset 4.0.6 with
+`WixToolset.UI.wixext` 4.0.6 and Inno Setup 6.4.3. From a Visual Studio
+developer shell, run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File packaging/windows/build-installers.ps1 `
+  -Version 0.1.0 `
+  -WixPath C:\tools\wix\wix.exe `
+  -InnoCompilerPath 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+```
+
+The script compiles the application once in Release mode, runs the complete
+CTest suite, stages the native payload, and creates:
+
+- `DiskBloom-0.1.0-windows-x64-en-US.msi`
+- `DiskBloom-0.1.0-windows-x64-zh-CN.msi`
+- `DiskBloom-0.1.0-windows-x64-setup.exe`
+
+All installers target x64 Windows, request administrator elevation, install
+under `Program Files\DiskBloom`, and enable the desktop shortcut by default.
+The MSI language is selected by the filename; the EXE selects English or
+Simplified Chinese from the Windows UI language and lets the user change it.
+
+Publishing a GitHub Release whose tag matches `vX.Y.Z` builds, verifies, and
+attaches all three installers. A manual `Windows Release Installers` workflow
+run accepts `X.Y.Z` and retains the packages as a workflow artifact without
+editing a Release.
+
+The current installers are unsigned and can trigger a Windows SmartScreen
+warning.
+
 ## QA Launch Options
 
 The Settings menu changes theme and language at runtime. Visual QA can select
@@ -75,8 +109,8 @@ fall back to permanent deletion.
   clickable breadcrumb chain.
 - Analyzer transitions do not yet reproduce DaisyDisk's animated fan motion.
 - Theme and language choices are not yet persisted across restarts.
-- The ZIP is unsigned; public production distribution still needs code signing
-  and MSIX packaging to avoid SmartScreen friction.
+- The ZIP, MSI, and EXE installers are unsigned; public production
+  distribution still needs code signing to reduce SmartScreen friction.
 - Cloud storage, network shares, duplicate detection, and direct NTFS MFT
   parsing are outside the current scope.
 

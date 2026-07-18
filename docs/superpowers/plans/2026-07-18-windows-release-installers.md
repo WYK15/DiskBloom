@@ -36,7 +36,7 @@
 - Consumes: `-DDISKBLOOM_VERSION=X.Y.Z` at configure time.
 - Produces: `PROJECT_VERSION`, CPack names, and `DiskBloom.exe` file/product metadata with the same `X.Y.Z` value.
 
-- [ ] **Step 1: Add a metadata assertion script and CTest entry**
+- [x] **Step 1: Add a metadata assertion script and CTest entry**
 
 Create `tests/release_version_tests.ps1`:
 
@@ -76,7 +76,7 @@ add_test(
 )
 ```
 
-- [ ] **Step 2: Run an override build to prove the metadata test fails**
+- [x] **Step 2: Run an override build to prove the metadata test fails**
 
 Run from a Visual Studio developer shell:
 
@@ -88,7 +88,7 @@ ctest --test-dir build/version-red -C Release -R diskbloom_release_version_metad
 
 Expected: FAIL because the current resource still reports `0.1.0`.
 
-- [ ] **Step 3: Validate the cache version before `project()`**
+- [x] **Step 3: Validate the cache version before `project()`**
 
 Replace the fixed project declaration in `CMakeLists.txt` with:
 
@@ -101,7 +101,7 @@ endif()
 project(DiskBloom VERSION ${DISKBLOOM_VERSION} LANGUAGES CXX)
 ```
 
-- [ ] **Step 4: Generate the Windows resource from CMake version values**
+- [x] **Step 4: Generate the Windows resource from CMake version values**
 
 Rename the resource file to `diskbloom.rc.in`. Replace every numeric and string version literal with:
 
@@ -137,7 +137,7 @@ IDI_DISKBLOOM ICON "@CMAKE_CURRENT_SOURCE_DIR@/resources/diskbloom_icon.ico"
 
 Replace `resources/diskbloom.rc` in `add_executable(DiskBloom ...)` with `${DISKBLOOM_GENERATED_RESOURCE}`.
 
-- [ ] **Step 5: Run version validation in both positive and negative modes**
+- [x] **Step 5: Run version validation in both positive and negative modes**
 
 Run:
 
@@ -150,7 +150,7 @@ cmake -S . -B build/version-invalid -G Ninja -DDISKBLOOM_VERSION=9.8
 
 Expected: metadata test PASS; invalid configure exits nonzero with `DISKBLOOM_VERSION must match X.Y.Z`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add CMakeLists.txt src/CMakeLists.txt src/resources/diskbloom.rc.in tests/CMakeLists.txt tests/release_version_tests.ps1
@@ -169,7 +169,7 @@ git commit -m "build: make release version configurable"
 - Produces: `ConvertFrom-DiskBloomReleaseTag(string) -> string`, `Assert-DiskBloomVersion(string)`, `Get-DiskBloomPackagePaths(string, string) -> PSCustomObject`, and `Assert-DiskBloomPackageSet(PSCustomObject) -> object[]`.
 - Consumes: no build tools; these functions are pure except for final file validation.
 
-- [ ] **Step 1: Write contract tests first**
+- [x] **Step 1: Write contract tests first**
 
 Create `packaging/windows/tests/packaging_tests.ps1` that imports the module and performs these assertions:
 
@@ -191,6 +191,10 @@ Assert-Equal '1.2.3' (ConvertFrom-DiskBloomReleaseTag 'v1.2.3') 'Tag conversion 
 Assert-Throws { ConvertFrom-DiskBloomReleaseTag '1.2.3' } 'Missing v prefix was accepted.'
 Assert-Throws { ConvertFrom-DiskBloomReleaseTag 'v1.2.3-beta.1' } 'Prerelease tag was accepted.'
 Assert-Throws { Assert-DiskBloomVersion 'v1.2.3' } 'Manual version accepted a v prefix.'
+Assert-Equal `
+    (Get-DiskBloomMsiProductCode -Version '1.2.3' -Culture 'en-US') `
+    (Get-DiskBloomMsiProductCode -Version '1.2.3' -Culture 'en-US') `
+    'MSI ProductCode is not repeatable.'
 
 $paths = Get-DiskBloomPackagePaths -Version '1.2.3' -OutputDirectory 'C:\packages'
 Assert-Equal 'DiskBloom-1.2.3-windows-x64-en-US.msi' (Split-Path $paths.EnglishMsi -Leaf) 'English MSI name drifted.'
@@ -212,7 +216,7 @@ try {
 }
 ```
 
-- [ ] **Step 2: Run the tests to prove the module is missing**
+- [x] **Step 2: Run the tests to prove the module is missing**
 
 Run:
 
@@ -222,7 +226,7 @@ pwsh -NoProfile -File packaging/windows/tests/packaging_tests.ps1
 
 Expected: FAIL because `Packaging.psm1` does not exist.
 
-- [ ] **Step 3: Implement the release contract module**
+- [x] **Step 3: Implement the release contract module**
 
 Create `Packaging.psm1` with strict mode, anchored regular expressions, absolute output paths, ordered package properties, non-empty file checks, and SHA-256 results:
 
@@ -259,6 +263,26 @@ function Get-DiskBloomPackagePaths {
     }
 }
 
+function Get-DiskBloomMsiProductCode {
+    param(
+        [Parameter(Mandatory)][string]$Version,
+        [Parameter(Mandatory)][string]$Culture
+    )
+    Assert-DiskBloomVersion $Version
+    if ($Culture -notin @('en-US', 'zh-CN')) {
+        throw "Unsupported MSI culture '$Culture'."
+    }
+    $seed = "3FE244EB-3C40-4A15-816C-7E4F0994D9D5|$Version|$Culture"
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha256.ComputeHash([Text.Encoding]::UTF8.GetBytes($seed))
+    } finally {
+        $sha256.Dispose()
+    }
+    $hex = ([BitConverter]::ToString($hash, 0, 16)).Replace('-', '')
+    return ([guid]::ParseExact($hex, 'N')).ToString('B').ToUpperInvariant()
+}
+
 function Assert-DiskBloomPackageSet {
     param([Parameter(Mandatory)]$Paths)
     foreach ($path in @($Paths.EnglishMsi, $Paths.ChineseMsi, $Paths.SetupExe)) {
@@ -268,16 +292,16 @@ function Assert-DiskBloomPackageSet {
     }
 }
 
-Export-ModuleMember -Function ConvertFrom-DiskBloomReleaseTag, Assert-DiskBloomVersion, Get-DiskBloomPackagePaths, Assert-DiskBloomPackageSet
+Export-ModuleMember -Function ConvertFrom-DiskBloomReleaseTag, Assert-DiskBloomVersion, Get-DiskBloomPackagePaths, Get-DiskBloomMsiProductCode, Assert-DiskBloomPackageSet
 ```
 
-- [ ] **Step 4: Run the contract tests**
+- [x] **Step 4: Run the contract tests**
 
 Run: `pwsh -NoProfile -File packaging/windows/tests/packaging_tests.ps1`
 
 Expected: exit 0 with no assertion failure.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add packaging/windows/Packaging.psm1 packaging/windows/tests/packaging_tests.ps1
@@ -298,7 +322,7 @@ git commit -m "build: define Windows release artifact contract"
 - Produces one en-US MSI and one zh-CN MSI from identical staged files.
 - Stable identifiers: upgrade `{3FE244EB-3C40-4A15-816C-7E4F0994D9D5}`, Start menu component `{0C5F7299-9120-483A-B7A2-B7864FDA9BBF}`, desktop component `{279A285A-A1D9-4068-9E08-EFFF4FDE91D8}`.
 
-- [ ] **Step 1: Create localization files before the product source**
+- [x] **Step 1: Create localization files before the product source**
 
 Create matching WiX v4 `.wxl` files. Use culture `en-US`, codepage `1252`, LCID `1033` for English; use culture `zh-CN`, codepage `936`, LCID `2052` for Chinese. Each file defines these exact IDs:
 
@@ -318,7 +342,7 @@ and:
 <String Id="DowngradeError" Value="已安装更高版本的 DiskBloom。" />
 ```
 
-- [ ] **Step 2: Prove the WiX build has no product source yet**
+- [x] **Step 2: Prove the WiX build has no product source yet**
 
 Run:
 
@@ -328,7 +352,7 @@ wix build packaging/windows/wix/Product.wxs -arch x64 -ext WixToolset.UI.wixext 
 
 Expected: FAIL because `Product.wxs` does not exist.
 
-- [ ] **Step 3: Author the per-machine product and shortcut features**
+- [x] **Step 3: Author the per-machine product and shortcut features**
 
 Create `Product.wxs` with:
 
@@ -339,6 +363,7 @@ Create `Product.wxs` with:
   <Package Name="DiskBloom"
            Manufacturer="DiskBloom Contributors"
            Version="$(ProductVersion)"
+           ProductCode="$(ProductCode)"
            Language="!(loc.ProductLanguage)"
            UpgradeCode="{3FE244EB-3C40-4A15-816C-7E4F0994D9D5}"
            Scope="perMachine"
@@ -358,7 +383,7 @@ Create `Product.wxs` with:
     <StandardDirectory Id="DesktopFolder" />
 
     <Feature Id="MainFeature" Title="DiskBloom" Level="1" Display="expand" AllowAbsent="no">
-      <Files Include="$(StageDir)\**" Directory="INSTALLFOLDER" />
+      <ComponentGroupRef Id="AppPayload" />
       <ComponentRef Id="StartMenuShortcutComponent" />
       <Feature Id="DesktopShortcutFeature"
                Title="!(loc.DesktopShortcutTitle)"
@@ -368,6 +393,36 @@ Create `Product.wxs` with:
         <ComponentRef Id="DesktopShortcutComponent" />
       </Feature>
     </Feature>
+
+    <ComponentGroup Id="AppPayload" Directory="INSTALLFOLDER">
+      <Component Id="DiskBloomExecutableComponent" Guid="*">
+        <File Id="DiskBloomExecutable" Source="$(StageDir)\DiskBloom.exe" KeyPath="yes" />
+      </Component>
+      <Component Id="ConcrtRuntimeComponent" Guid="*">
+        <File Id="ConcrtRuntime" Source="$(StageDir)\concrt140.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="MsvcRuntimeComponent" Guid="*">
+        <File Id="MsvcRuntime" Source="$(StageDir)\msvcp140.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="MsvcRuntime1Component" Guid="*">
+        <File Id="MsvcRuntime1" Source="$(StageDir)\msvcp140_1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="MsvcRuntime2Component" Guid="*">
+        <File Id="MsvcRuntime2" Source="$(StageDir)\msvcp140_2.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="MsvcAtomicWaitComponent" Guid="*">
+        <File Id="MsvcAtomicWait" Source="$(StageDir)\msvcp140_atomic_wait.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="MsvcCodecvtIdsComponent" Guid="*">
+        <File Id="MsvcCodecvtIds" Source="$(StageDir)\msvcp140_codecvt_ids.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="VcRuntimeComponent" Guid="*">
+        <File Id="VcRuntime" Source="$(StageDir)\vcruntime140.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="VcRuntime1Component" Guid="*">
+        <File Id="VcRuntime1" Source="$(StageDir)\vcruntime140_1.dll" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
 
     <Component Id="StartMenuShortcutComponent"
                Directory="PROGRAMMENUFOLDER"
@@ -406,7 +461,7 @@ Create `Product.wxs` with:
 </Wix>
 ```
 
-- [ ] **Step 4: Stage once and build both cultures**
+- [x] **Step 4: Stage once and build both cultures**
 
 Run after installing WiX 4.0.6 and its UI extension:
 
@@ -415,13 +470,13 @@ cmake --install build/windows-release --prefix build/installer-stage --config Re
 $stage = (Resolve-Path build/installer-stage).Path
 $icon = (Resolve-Path src/resources/diskbloom_icon.ico).Path
 New-Item -ItemType Directory build/packages -Force | Out-Null
-wix build packaging/windows/wix/Product.wxs -arch x64 -ext WixToolset.UI.wixext -culture en-US -loc packaging/windows/wix/Product.en-US.wxl -pdbtype none -d ProductVersion=0.1.0 -d StageDir=$stage -d IconPath=$icon -out build/packages/DiskBloom-0.1.0-windows-x64-en-US.msi
-wix build packaging/windows/wix/Product.wxs -arch x64 -ext WixToolset.UI.wixext -culture zh-CN -loc packaging/windows/wix/Product.zh-CN.wxl -pdbtype none -d ProductVersion=0.1.0 -d StageDir=$stage -d IconPath=$icon -out build/packages/DiskBloom-0.1.0-windows-x64-zh-CN.msi
+wix build packaging/windows/wix/Product.wxs -arch x64 -ext WixToolset.UI.wixext -culture en-US -loc packaging/windows/wix/Product.en-US.wxl -pdbtype none -d ProductVersion=0.1.0 -d ProductCode={A195C4BE-58F0-B5FC-3431-57E5907D9B5A} -d StageDir=$stage -d IconPath=$icon -out build/packages/DiskBloom-0.1.0-windows-x64-en-US.msi
+wix build packaging/windows/wix/Product.wxs -arch x64 -ext WixToolset.UI.wixext -culture zh-CN -loc packaging/windows/wix/Product.zh-CN.wxl -pdbtype none -d ProductVersion=0.1.0 -d ProductCode={1FFDD38B-50FD-33BA-14A7-CCD35B1A3E06} -d StageDir=$stage -d IconPath=$icon -out build/packages/DiskBloom-0.1.0-windows-x64-zh-CN.msi
 ```
 
 Expected: both commands exit 0 and produce non-empty MSI files.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add packaging/windows/wix
@@ -434,12 +489,13 @@ git commit -m "build: add localized MSI packages"
 
 **Files:**
 - Create: `packaging/windows/inno/DiskBloom.iss`
+- Create: `packaging/windows/inno/languages/ChineseSimplified.isl`
 
 **Interfaces:**
 - Consumes Inno preprocessor defines: `AppVersion`, `StageDir`, `OutputDir`, and `IconPath`.
 - Produces `DiskBloom-X.Y.Z-windows-x64-setup.exe` with English and Simplified Chinese messages.
 
-- [ ] **Step 1: Prove the Inno source is absent**
+- [x] **Step 1: Prove the Inno source is absent**
 
 Run:
 
@@ -449,7 +505,7 @@ Run:
 
 Expected: FAIL because `DiskBloom.iss` does not exist.
 
-- [ ] **Step 2: Author the x64 per-machine installer**
+- [x] **Step 2: Author the x64 per-machine installer**
 
 Create `DiskBloom.iss` with:
 
@@ -491,7 +547,7 @@ RestartApplications=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
-Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+Name: "chinesesimplified"; MessagesFile: "languages\ChineseSimplified.isl"
 
 [CustomMessages]
 english.CreateDesktopShortcut=Create a desktop shortcut
@@ -508,7 +564,7 @@ Name: "{autoprograms}\DiskBloom"; Filename: "{app}\DiskBloom.exe"; WorkingDir: "
 Name: "{autodesktop}\DiskBloom"; Filename: "{app}\DiskBloom.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 ```
 
-- [ ] **Step 3: Build the multilingual EXE**
+- [x] **Step 3: Build the multilingual EXE**
 
 Run:
 
@@ -521,7 +577,7 @@ $icon = (Resolve-Path src/resources/diskbloom_icon.ico).Path
 
 Expected: exit 0 and a non-empty `DiskBloom-0.1.0-windows-x64-setup.exe`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```powershell
 git add packaging/windows/inno/DiskBloom.iss
@@ -540,7 +596,7 @@ git commit -m "build: add multilingual EXE installer"
 - `build-installers.ps1 -Version X.Y.Z -WixPath path -InnoCompilerPath path [-BuildDirectory path] [-OutputDirectory path]` produces the contract paths and exits nonzero on any failed stage.
 - `verify-installers.ps1 -Version X.Y.Z -OutputDirectory path` installs and removes all three packages, checking payload and shortcut behavior.
 
-- [ ] **Step 1: Add a driver test using an invalid version**
+- [x] **Step 1: Add a driver test using an invalid version**
 
 Run before creating the driver:
 
@@ -550,7 +606,7 @@ pwsh -NoProfile -File packaging/windows/build-installers.ps1 -Version v1.2.3 -Wi
 
 Expected: FAIL because the driver is absent.
 
-- [ ] **Step 2: Implement the packaging driver in fixed pipeline order**
+- [x] **Step 2: Implement the packaging driver in fixed pipeline order**
 
 The driver must:
 
@@ -575,7 +631,7 @@ cmake --install $build --prefix $stage --config Release
 
 Assert that `$stage\DiskBloom.exe` exists, then invoke WiX twice with `-arch x64`, `-ext WixToolset.UI.wixext`, `-pdbtype none`, the matching `-culture` and `-loc`, and the shared defines. Invoke Inno once with the four `/D` defines. End by returning `Assert-DiskBloomPackageSet` results so paths, sizes, and SHA-256 hashes appear in the log.
 
-- [ ] **Step 3: Run invalid and valid driver paths**
+- [x] **Step 3: Run invalid and valid driver paths**
 
 Run:
 
@@ -586,7 +642,7 @@ pwsh -NoProfile -File packaging/windows/build-installers.ps1 -Version 0.1.0 -Wix
 
 Expected: first exits nonzero before build; second runs all Release tests and produces three validated packages.
 
-- [ ] **Step 4: Implement elevated installer smoke checks**
+- [x] **Step 4: Implement elevated installer smoke checks**
 
 `verify-installers.ps1` must reject non-administrator execution, remove stale `C:\Program Files\DiskBloom` and `C:\Users\Public\Desktop\DiskBloom.lnk` only after verifying those exact resolved paths, and execute these scenarios with exit-code checks and `try/finally` cleanup:
 
@@ -602,7 +658,7 @@ Before installation, query each MSI's `Feature` table through the
 `DiskBloom.iss` as UTF-8 and assert that both language declarations and both
 `CreateDesktopShortcut` messages are present.
 
-- [ ] **Step 5: Run the installer smoke suite**
+- [x] **Step 5: Run the installer smoke suite**
 
 Run from an elevated PowerShell:
 
@@ -612,7 +668,7 @@ pwsh -NoProfile -File packaging/windows/verify-installers.ps1 -Version 0.1.0 -Ou
 
 Expected: four install/uninstall scenarios pass and leave neither the application directory nor desktop shortcut behind.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add packaging/windows/build-installers.ps1 packaging/windows/verify-installers.ps1
@@ -630,7 +686,7 @@ git commit -m "build: verify Windows installer behavior"
 - Consumes: `release.published` with tag `vX.Y.Z`, or manual `version` input `X.Y.Z`.
 - Produces: three Release attachments for automatic runs, or one Actions artifact containing the three packages for manual runs.
 
-- [ ] **Step 1: Create the workflow triggers, permissions, and concurrency key**
+- [x] **Step 1: Create the workflow triggers, permissions, and concurrency key**
 
 Start the workflow with:
 
@@ -655,7 +711,7 @@ concurrency:
   cancel-in-progress: false
 ```
 
-- [ ] **Step 2: Add deterministic tool setup and version resolution**
+- [x] **Step 2: Add deterministic tool setup and version resolution**
 
 Use `windows-2022`, `actions/checkout@v4`, PowerShell, WiX 4.0.6, and Inno Setup 6.4.3:
 
@@ -688,14 +744,23 @@ jobs:
         shell: pwsh
         run: |
           dotnet tool install --tool-path "$env:RUNNER_TEMP\wix" wix --version 4.0.6
-          & "$env:RUNNER_TEMP\wix\wix.exe" extension add WixToolset.UI.wixext/4.0.6
+          & "$env:RUNNER_TEMP\wix\wix.exe" extension add --global WixToolset.UI.wixext/4.0.6
 
       - name: Install Inno Setup
         shell: pwsh
-        run: choco install innosetup --version=6.4.3 --no-progress --yes
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'innosetup-6.4.3.exe'
+          Invoke-WebRequest -UseBasicParsing `
+            -Uri 'https://github.com/jrsoftware/issrc/releases/download/is-6_4_3/innosetup-6.4.3.exe' `
+            -OutFile $installer
+          $signature = Get-AuthenticodeSignature -LiteralPath $installer
+          if ($signature.Status -ne 'Valid' -or
+              $signature.SignerCertificate.Subject -notlike '*Pyrsys B.V.*') {
+            throw 'Inno Setup signature validation failed.'
+          }
 ```
 
-- [ ] **Step 3: Add build, installer verification, and package validation**
+- [x] **Step 3: Add build, installer verification, and package validation**
 
 ```yaml
       - name: Build and test installers
@@ -714,7 +779,7 @@ jobs:
             -OutputDirectory build/release-packages
 ```
 
-- [ ] **Step 4: Add mutually exclusive manual and Release uploads**
+- [x] **Step 4: Add mutually exclusive manual and Release uploads**
 
 ```yaml
       - name: Retain manual-build packages
@@ -745,7 +810,7 @@ jobs:
             --clobber --repo $env:GITHUB_REPOSITORY
 ```
 
-- [ ] **Step 5: Perform static workflow checks**
+- [x] **Step 5: Perform static workflow checks**
 
 Run:
 
@@ -756,7 +821,7 @@ pwsh -NoProfile -Command "Import-Module ./packaging/windows/Packaging.psm1; Conv
 
 Expected: all required workflow clauses are found; tag conversion prints `1.2.3`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add .github/workflows/release-windows.yml
@@ -774,7 +839,7 @@ git commit -m "ci: publish Windows release installers"
 **Interfaces:**
 - Documents manual packaging, artifact names, unsigned-package warning, Release tag contract, and repeatable CI/local verification.
 
-- [ ] **Step 1: Update public build documentation**
+- [x] **Step 1: Update public build documentation**
 
 Add a `Windows Installers` section to `README.md` with:
 
@@ -787,7 +852,7 @@ pwsh -NoProfile -File packaging/windows/build-installers.ps1 `
 
 Document the three exact filenames, `vX.Y.Z` Release-tag rule, per-machine/UAC behavior, language split, default desktop option, and unsigned SmartScreen warning.
 
-- [ ] **Step 2: Record installer QA evidence**
+- [x] **Step 2: Record installer QA evidence**
 
 Create `docs/qa/windows-installers.md` containing:
 
@@ -799,7 +864,7 @@ Create `docs/qa/windows-installers.md` containing:
 - confirmation that the default path creates the shortcut and opt-out leaves none;
 - the manual Actions artifact behavior and published Release attachment behavior.
 
-- [ ] **Step 3: Run all contract, build, test, and installer checks fresh**
+- [x] **Step 3: Run all contract, build, test, and installer checks fresh**
 
 Run:
 
@@ -813,14 +878,14 @@ git diff --check
 
 Expected: contract tests exit 0; full CTest reports zero failures; all four installer scenarios pass; diff check emits no errors.
 
-- [ ] **Step 4: Commit documentation**
+- [x] **Step 4: Commit documentation**
 
 ```powershell
 git add README.md docs/qa/windows-installers.md
 git commit -m "docs: document Windows installer releases"
 ```
 
-- [ ] **Step 5: Review branch scope**
+- [x] **Step 5: Review branch scope**
 
 Run:
 
