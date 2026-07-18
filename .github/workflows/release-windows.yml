@@ -45,6 +45,14 @@ jobs:
           }
           "value=$version" >> $env:GITHUB_OUTPUT
 
+      - name: Run packaging contract tests
+        shell: pwsh
+        run: |
+          ./packaging/windows/tests/packaging_tests.ps1
+          ./packaging/windows/tests/driver_tests.ps1
+          ./packaging/windows/tests/verifier_tests.ps1
+          ./packaging/windows/tests/workflow_tests.ps1
+
       - name: Install WiX Toolset 4.0.6
         shell: pwsh
         run: |
