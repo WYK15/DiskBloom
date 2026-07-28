@@ -30,5 +30,6 @@ try {
         Remove-Item -LiteralPath $temp -Recurse -Force
     }
 }
+$global:LASTEXITCODE = 0
 
 Write-Output 'Packaging driver tests passed.'

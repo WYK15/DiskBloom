@@ -15,5 +15,6 @@ if ($verifierExitCode -eq 0) {
 if ($resultText -notmatch "Version 'v1\.2\.3' must match X\.Y\.Z") {
     throw "Verifier failed for the wrong reason: $resultText"
 }
+$global:LASTEXITCODE = 0
 
 Write-Output 'Installer verifier tests passed.'
