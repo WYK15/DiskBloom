@@ -115,6 +115,7 @@ jobs:
           $archive = Join-Path $packageDirectory 'DiskBloom-${{ steps.version.outputs.value }}-windows-x64-portable.zip'
           New-Item -ItemType Directory -Path $packageDirectory -Force | Out-Null
           cpack --config build/release-installers/CPackConfig.cmake `
+            -C Release `
             --generator ZIP `
             --package-file-name 'DiskBloom-${{ steps.version.outputs.value }}-windows-x64-portable' `
             --package-directory $packageDirectory
