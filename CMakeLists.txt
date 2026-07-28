@@ -25,5 +25,6 @@ endif()
 
 set(CPACK_GENERATOR "ZIP")
 set(CPACK_PACKAGE_FILE_NAME "DiskBloom-${PROJECT_VERSION}-windows-x64-portable")
+set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
 set(CPACK_PACKAGE_VENDOR "DiskBloom Contributors")
 include(CPack)

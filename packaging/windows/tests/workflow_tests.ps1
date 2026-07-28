@@ -3,6 +3,8 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..'))
 $workflowPath = Join-Path $repoRoot '.github\workflows\release-windows.yml'
 $workflow = [IO.File]::ReadAllText($workflowPath, [Text.Encoding]::UTF8)
+$cmakePath = Join-Path $repoRoot 'CMakeLists.txt'
+$cmake = [IO.File]::ReadAllText($cmakePath, [Text.Encoding]::UTF8)
 
 function Assert-Contains {
     param([string]$Expected, [string]$Message)
@@ -36,5 +38,9 @@ Assert-Contains '$candidateDirectories' 'Portable archive discovery is missing.'
 Assert-Contains 'Expected one CPack archive' 'Portable archive discovery failure is missing.'
 Assert-Contains 'windows-x64-portable.zip' 'Portable archive name is missing.'
 Assert-Contains 'does not contain DiskBloom.exe' 'Portable archive payload verification is missing.'
+
+if (-not $cmake.Contains('set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)')) {
+    throw 'Portable ZIP must not add a top-level directory.'
+}
 
 Write-Output 'Release workflow contract tests passed.'
