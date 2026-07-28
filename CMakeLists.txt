@@ -24,6 +24,6 @@ if(BUILD_TESTING)
 endif()
 
 set(CPACK_GENERATOR "ZIP")
-set(CPACK_PACKAGE_FILE_NAME "DiskBloom-${PROJECT_VERSION}-windows-x64")
+set(CPACK_PACKAGE_FILE_NAME "DiskBloom-${PROJECT_VERSION}-windows-x64-portable")
 set(CPACK_PACKAGE_VENDOR "DiskBloom Contributors")
 include(CPack)
