@@ -112,11 +112,32 @@ jobs:
         shell: pwsh
         run: |
           $packageDirectory = Join-Path $env:GITHUB_WORKSPACE 'build\release-packages'
+          $archive = Join-Path $packageDirectory 'DiskBloom-${{ steps.version.outputs.value }}-windows-x64-portable.zip'
           New-Item -ItemType Directory -Path $packageDirectory -Force | Out-Null
           cpack --config build/release-installers/CPackConfig.cmake `
             --generator ZIP `
             --package-file-name 'DiskBloom-${{ steps.version.outputs.value }}-windows-x64-portable' `
             --package-directory $packageDirectory
+
+          $candidateDirectories = @(
+            $packageDirectory,
+            (Join-Path $env:GITHUB_WORKSPACE 'build\release-installers'),
+            $env:GITHUB_WORKSPACE
+          )
+          $candidates = @(
+            foreach ($directory in $candidateDirectories) {
+              if (Test-Path -LiteralPath $directory -PathType Container) {
+                Get-ChildItem -LiteralPath $directory -Filter 'DiskBloom-*.zip' -File
+              }
+            }
+          )
+          if ($candidates.Count -ne 1) {
+            $candidatePaths = $candidates.FullName -join [Environment]::NewLine
+            throw "Expected one CPack archive, found $($candidates.Count):$([Environment]::NewLine)$candidatePaths"
+          }
+          if ([IO.Path]::GetFullPath($candidates[0].FullName) -ne [IO.Path]::GetFullPath($archive)) {
+            Move-Item -LiteralPath $candidates[0].FullName -Destination $archive -Force
+          }
 
       - name: Verify portable ZIP
         shell: pwsh

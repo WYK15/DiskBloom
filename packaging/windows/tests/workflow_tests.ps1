@@ -31,6 +31,8 @@ Assert-Contains 'cpack --config build/release-installers/CPackConfig.cmake' 'Por
 Assert-Contains '--generator ZIP' 'Portable ZIP generator is missing.'
 Assert-Contains "--package-file-name 'DiskBloom-" 'Portable package filename override is missing.'
 Assert-Contains '--package-directory $packageDirectory' 'Portable package output directory is missing.'
+Assert-Contains '$candidateDirectories' 'Portable archive discovery is missing.'
+Assert-Contains 'Expected one CPack archive' 'Portable archive discovery failure is missing.'
 Assert-Contains 'windows-x64-portable.zip' 'Portable archive name is missing.'
 Assert-Contains 'does not contain DiskBloom.exe' 'Portable archive payload verification is missing.'
 
